@@ -77,11 +77,22 @@ let Pool = null;
 try { ({ Pool } = require('pg')); }
 catch (e) { console.error('[pg] module not installed - run "npm install". Online DB disabled.'); }
 
+// Managed hosts (Render/Heroku/Neon/...) require SSL over their public hostnames.
+// Local/internal hosts don't. Auto-enable when the URL points at such a host or
+// asks for SSL explicitly (?sslmode=require) or PGSSL=true is set.
+function sslOpt(url) {
+  const s = String(url || '');
+  const wants = /\.render\.com|\.neon\.tech|\.herokuapp\.com|amazonaws\.com|sslmode=require|ssl=true/i.test(s)
+    || String(process.env.PGSSL || '').toLowerCase() === 'true';
+  return wants ? { rejectUnauthorized: false } : false;
+}
+
 function rebuildPool() {
   if (state.pool) { try { state.pool.end(); } catch {} state.pool = null; }
   if (!Pool || !state.dbUrl) return;
   state.pool = new Pool({
     connectionString: state.dbUrl,
+    ssl: sslOpt(state.dbUrl),
     max: 5, idleTimeoutMillis: 30000, connectionTimeoutMillis: 10000,
   });
   state.pool.on('error', (e) => console.error('[pg] idle client error:', e.message));
@@ -185,7 +196,7 @@ async function handleSetConfig(req, res) {
   const newUrl = buildDbUrl(parts);
 
   // Test the new settings on a throwaway pool before committing.
-  const test = new Pool({ connectionString: newUrl, max: 1, connectionTimeoutMillis: 10000 });
+  const test = new Pool({ connectionString: newUrl, ssl: sslOpt(newUrl), max: 1, connectionTimeoutMillis: 10000 });
   try {
     const ping = await pingPool(test, allowWrite);
     try { await test.end(); } catch {}
@@ -217,7 +228,8 @@ async function handleTestConfig(req, res) {
   if (!parts.host || !parts.database || !parts.username) {
     return sendJson(res, 400, { MessageCode: 400, Message: 'กรุณากรอก host, database และ username' });
   }
-  const test = new Pool({ connectionString: buildDbUrl(parts), max: 1, connectionTimeoutMillis: 10000 });
+  const testUrl = buildDbUrl(parts);
+  const test = new Pool({ connectionString: testUrl, ssl: sslOpt(testUrl), max: 1, connectionTimeoutMillis: 10000 });
   try {
     const ping = await pingPool(test, body.allowWrite === true);
     try { await test.end(); } catch {}
