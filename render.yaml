@@ -1,0 +1,32 @@
+# Render Blueprint — deploy BMS Appointment (server.js) + a managed PostgreSQL.
+# How to use:
+#   1) Push this repo to GitHub (already done: bmsjib5-ux/Lab-Appointment-online)
+#   2) Render Dashboard -> New -> Blueprint -> เลือก repo นี้ -> Apply
+#   3) Render จะสร้าง web service + database ให้ และเชื่อม ONLINE_DB_URL อัตโนมัติ
+#
+# หมายเหตุความปลอดภัย:
+#   ONLINE_ALLOW_WRITE=true เปิดสิทธิ์เขียน (จำเป็นตอนตั้งค่าครั้งแรก: สร้างตาราง/ทะเบียน รพ./sync)
+#   URL เป็น public — ถ้าไม่อยากให้เขียนได้ ให้ตั้งเป็น "false" ใน dashboard หลัง seed เสร็จ
+databases:
+  - name: lab-appointment-db
+    plan: free
+    databaseName: lab_app_online
+    user: labapp
+
+services:
+  - type: web
+    name: lab-appointment-online
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: ONLINE_DB_URL
+        fromDatabase:
+          name: lab-appointment-db
+          property: connectionString
+      - key: ONLINE_ALLOW_WRITE
+        value: "true"
+      - key: NODE_VERSION
+        value: "20"
