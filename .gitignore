@@ -1,0 +1,7 @@
+node_modules/
+.env
+sync.config.json
+*.log
+_sess.json
+_cfg.json
+_c.js

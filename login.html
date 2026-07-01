@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>เข้าสู่ระบบ · BMS Appointment</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f0f4f8; --surface: #ffffff; --surface2: #e8eef4; --border: #d0d9e3;
+    --text: #1a2332; --text-muted: #5a6b7f; --primary: #0891b2; --primary-glow: rgba(8,145,178,0.1);
+    --success: #059669; --success-bg: rgba(5,150,105,0.08); --error: #dc2626; --error-bg: rgba(220,38,38,0.08);
+    --warn: #d97706; --warn-bg: rgba(217,119,6,0.08); --accent: #0891b2; --purple: #7c3aed;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Sarabun', sans-serif; background: linear-gradient(135deg, #0f2044 0%, #16305f 100%); color: var(--text); min-height: 100vh; font-size: 14px; line-height: 1.55; display: flex; align-items: center; justify-content: center; padding: 20px; }
+
+  .login-wrap { width: 100%; max-width: 430px; }
+  .login-card { background: var(--surface); border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.35); overflow: hidden; }
+  .login-head { background: #0f2044; padding: 26px 28px 22px; text-align: center; border-bottom: 3px solid var(--primary); }
+  .logo-shield { width: 54px; height: 54px; margin: 0 auto 12px; background: linear-gradient(135deg, #0891b2, #22d3ee); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 28px; }
+  .login-head h1 { font-size: 20px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
+  .login-head h1 span { color: #22d3ee; }
+  .login-head p { font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 4px; }
+
+  .login-body { padding: 26px 28px; }
+  .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+  .field label { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
+  .field input { padding: 13px 14px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text); font-size: 18px; font-family: 'JetBrains Mono', monospace; font-weight: 700; letter-spacing: 1px; text-align: center; }
+  .field input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); }
+
+  .btn { width: 100%; padding: 13px; border: none; border-radius: 9px; background: linear-gradient(135deg, #0891b2, #22d3ee); color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; transition: filter 0.15s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .btn:hover { filter: brightness(1.08); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; filter: none; }
+
+  .result { margin-top: 16px; padding: 11px 13px; border-radius: 9px; font-size: 13px; display: none; white-space: pre-wrap; word-break: break-word; }
+  .result.show { display: block; }
+  .result.ok { background: var(--success-bg); color: var(--success); border: 1px solid var(--success); }
+  .result.err { background: var(--error-bg); color: var(--error); border: 1px solid var(--error); }
+  .result.info { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
+
+  .login-foot { padding: 14px 28px 22px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--text-muted); }
+  .conn-dot { width: 8px; height: 8px; border-radius: 50%; background: #9aa7b6; }
+  .conn-dot.ok { background: var(--success); } .conn-dot.fail { background: var(--error); }
+  .foot-spacer { flex: 1; }
+  .link-btn { background: none; border: none; color: var(--primary); font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; text-decoration: underline; padding: 0; }
+
+  /* Admin panel */
+  .admin-card { background: var(--surface); border-radius: 14px; box-shadow: 0 8px 30px rgba(0,0,0,0.25); margin-top: 16px; overflow: hidden; display: none; }
+  .admin-card.show { display: block; }
+  .admin-head { background: var(--surface2); padding: 12px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .admin-head h3 { font-size: 14px; font-weight: 700; flex: 1; }
+  .admin-head .close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-muted); line-height: 1; }
+  .admin-body { padding: 16px 18px; max-height: 60vh; overflow-y: auto; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .form-row.one { grid-template-columns: 1fr; }
+  .mini-field { display: flex; flex-direction: column; gap: 4px; }
+  .mini-field label { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.3px; }
+  .mini-field input, .mini-field select { padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; font-family: inherit; }
+  .mini-field input:focus, .mini-field select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); }
+  .btn-sm { width: auto; padding: 8px 14px; font-size: 13px; border-radius: 7px; }
+  .btn-ghost { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+  .btn-ghost:hover { border-color: var(--accent); filter: none; }
+  .warn-note { font-size: 12px; color: var(--warn); background: var(--warn-bg); border: 1px solid rgba(217,119,6,0.3); border-radius: 8px; padding: 9px 11px; margin-bottom: 12px; }
+
+  .reg-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 12px; }
+  .reg-table th { background: var(--surface2); color: var(--accent); text-align: left; padding: 7px 8px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px; border-bottom: 1px solid var(--border); }
+  .reg-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  .reg-table tr:hover td { background: var(--surface2); }
+  .type-pill { display: inline-block; padding: 1px 8px; border-radius: 9px; font-size: 10px; font-weight: 700; }
+  .type-pill.main { background: rgba(8,145,178,0.15); color: var(--primary); }
+  .type-pill.sub { background: rgba(124,58,237,0.15); color: var(--purple); }
+  .row-act { background: none; border: none; cursor: pointer; font-size: 12px; padding: 2px 5px; color: var(--text-muted); }
+  .row-act:hover { color: var(--primary); }
+  .row-act.del:hover { color: var(--error); }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+</style>
+</head>
+<body>
+
+<div class="login-wrap">
+  <div class="login-card">
+    <div class="login-head">
+      <div class="logo-shield">&#128203;</div>
+      <h1>BMS <span>นัดหมาย</span></h1>
+      <p>เข้าสู่ระบบด้วยรหัสสถานพยาบาล</p>
+    </div>
+    <div class="login-body">
+      <div class="field">
+        <label>รหัสสถานพยาบาล</label>
+        <input type="text" id="hcode" placeholder="เช่น 10670" maxlength="15" autocomplete="off" autofocus>
+      </div>
+      <button class="btn" id="loginBtn">&#128273; เข้าสู่ระบบ</button>
+      <div class="result" id="result"></div>
+    </div>
+    <div class="login-foot">
+      <span class="conn-dot" id="dbDot"></span>
+      <span id="dbText">ฐานกลาง: กำลังเช็ค...</span>
+      <span class="foot-spacer"></span>
+      <button class="link-btn" id="adminToggle">จัดการทะเบียน รพ.</button>
+    </div>
+  </div>
+
+  <!-- Admin: manage hospital_registry -->
+  <div class="admin-card" id="adminCard">
+    <div class="admin-head">
+      <h3>ทะเบียนสถานพยาบาล (hospital_registry)</h3>
+      <button class="close" id="adminClose">&times;</button>
+    </div>
+    <div class="admin-body">
+      <div class="warn-note" id="writeWarn" style="display:none">
+        ⚠️ ฐานกลางเปิดสิทธิ์อ่านอย่างเดียว — เพิ่ม/แก้/ลบไม่ได้ จนกว่าจะเปิด <b>ONLINE_ALLOW_WRITE=true</b>
+        (ตั้งค่าได้ที่ปุ่ม ⚙ ในหน้า <button class="link-btn" onclick="location.href='index.html'">index</button>)
+      </div>
+      <div class="form-row">
+        <div class="mini-field"><label>รหัส รพ.</label><input type="text" id="fHcode" maxlength="15" placeholder="10670"></div>
+        <div class="mini-field"><label>ประเภท</label>
+          <select id="fType"><option value="main">Main (แม่ข่าย → index)</option><option value="sub" selected>Sub (ลูกข่าย → client)</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="mini-field"><label>ชื่อสถานพยาบาล</label><input type="text" id="fName" maxlength="250" placeholder="รพ. ..."></div>
+        <div class="mini-field" id="mainCodeWrap"><label>รหัสแม่ข่าย (main)</label><input type="text" id="fMain" maxlength="15" placeholder="รหัส รพ.แม่"></div>
+      </div>
+      <div class="form-row one">
+        <div class="mini-field"><label>หมายเหตุ</label><input type="text" id="fNote" maxlength="300" placeholder="(ไม่บังคับ)"></div>
+      </div>
+      <div style="display:flex; gap:10px;">
+        <button class="btn btn-sm" id="saveHosBtn">&#128190; บันทึก / อัปเดต</button>
+        <button class="btn btn-sm btn-ghost" id="clearFormBtn">ล้างฟอร์ม</button>
+        <button class="btn btn-sm btn-ghost" id="reloadListBtn">&#128260; โหลดรายการ</button>
+      </div>
+      <div class="result" id="adminResult"></div>
+
+      <table class="reg-table">
+        <thead><tr><th>รหัส</th><th>ชื่อ</th><th>ประเภท</th><th>แม่ข่าย</th><th>อัปเดต</th><th></th></tr></thead>
+        <tbody id="regBody"><tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:16px;">— กด "โหลดรายการ" —</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// ================= Login by hospital code =================
+// Looks the code up in hospital_registry (central DB) via server.js:
+//   hos_type = 'main' -> index.html   (main hospital, sees all subs)
+//   hos_type = 'sub'  -> client.html  (sub hospital, sees only itself)
+const $ = (id) => document.getElementById(id);
+function escHtml(s){ if(s==null) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function showResult(el, type, msg){ el.className = `result ${type} show`; el.textContent = msg; }
+function hideResult(el){ el.className = 'result'; }
+
+// ---- DB status ----
+async function pingDb(){
+  try{
+    const res = await fetch('/api/online/ping'); const j = await res.json();
+    if(res.ok && j.MessageCode === 200){ $('dbDot').className='conn-dot ok'; $('dbText').textContent=`ฐานกลาง: ${j.data?.db||'online'} ✓`; return true; }
+    $('dbDot').className='conn-dot fail'; $('dbText').textContent='ฐานกลาง: ต่อไม่ได้'; return false;
+  }catch(e){ $('dbDot').className='conn-dot fail'; $('dbText').textContent='ฐานกลาง: offline (เปิดผ่าน start.bat)'; return false; }
+}
+
+// ---- Login ----
+async function doLogin(){
+  const hcode = $('hcode').value.trim();
+  const btn = $('loginBtn'), res = $('result');
+  hideResult(res);
+  if(!hcode){ showResult(res,'err','กรุณากรอกรหัสสถานพยาบาล'); return; }
+  btn.disabled = true; btn.textContent = 'กำลังตรวจสอบ...';
+  try{
+    const r = await fetch('/api/online/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ hcode }) });
+    const j = await r.json();
+    if(!r.ok){ showResult(res,'err', j.Message || `HTTP ${r.status}`); return; }
+    if(j.notInitialized){ showResult(res,'err','ยังไม่มีตารางทะเบียน รพ. — เปิด "จัดการทะเบียน รพ." เพื่อสร้างและเพิ่มรหัสก่อน'); $('adminCard').classList.add('show'); return; }
+    if(!j.found){ showResult(res,'err', `ไม่พบรหัส "${hcode}" ในทะเบียน — ติดต่อผู้ดูแลเพื่อเพิ่มรหัส`); return; }
+    const d = j.data;
+    // remember identity for the target page
+    try{ sessionStorage.setItem('bms_login', JSON.stringify(d)); }catch(e){}
+    const target = d.hos_type === 'main' ? 'index.html' : 'client.html';
+    showResult(res,'ok', `เข้าสู่ระบบเป็น ${d.hos_type==='main'?'แม่ข่าย':'ลูกข่าย'} · ${d.hname||hcode} — กำลังเปิดหน้าจอ...`);
+    setTimeout(()=>{ location.href = `${target}?hcode=${encodeURIComponent(d.hcode)}`; }, 600);
+  }catch(e){
+    showResult(res,'err','เรียก backend ไม่ได้ — เปิดผ่าน start.bat (server.js)');
+  }finally{
+    btn.disabled = false; btn.innerHTML = '&#128273; เข้าสู่ระบบ';
+  }
+}
+
+// ================= Admin: registry management =================
+function syncMainCodeVisibility(){ $('mainCodeWrap').style.display = $('fType').value === 'main' ? 'none' : 'flex'; }
+
+async function loadRegistry(){
+  const body = $('regBody');
+  body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:16px;">กำลังโหลด...</td></tr>';
+  try{
+    const r = await fetch('/api/online/hospitals'); const j = await r.json();
+    if(!r.ok){ body.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--error);padding:16px;">${escHtml(j.Message||'error')}</td></tr>`; return; }
+    if(j.notInitialized || !j.data || !j.data.length){
+      body.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:16px;">— ยังไม่มีข้อมูล ${j.notInitialized?'(ตารางยังไม่ถูกสร้าง — กด "บันทึก" เพื่อสร้าง)':''} —</td></tr>`;
+      return;
+    }
+    body.innerHTML = j.data.map(h => `<tr>
+      <td class="mono">${escHtml(h.hcode)}</td>
+      <td>${escHtml(h.hname||'-')}</td>
+      <td><span class="type-pill ${h.hos_type==='main'?'main':'sub'}">${h.hos_type==='main'?'MAIN':'SUB'}</span></td>
+      <td class="mono">${escHtml(h.main_hos_code||'-')}</td>
+      <td class="mono" style="color:var(--text-muted)">${escHtml(h.updated_at||'')}</td>
+      <td style="white-space:nowrap">
+        <button class="row-act" data-edit='${escHtml(JSON.stringify(h))}' title="แก้ไข">&#9998;</button>
+        <button class="row-act del" data-del="${escHtml(h.hcode)}" title="ลบ">&#128465;</button>
+      </td></tr>`).join('');
+    body.querySelectorAll('button[data-edit]').forEach(b => b.addEventListener('click', () => fillForm(JSON.parse(b.dataset.edit))));
+    body.querySelectorAll('button[data-del]').forEach(b => b.addEventListener('click', () => delHospital(b.dataset.del)));
+  }catch(e){
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--error);padding:16px;">เรียก backend ไม่ได้</td></tr>';
+  }
+}
+
+function fillForm(h){
+  $('fHcode').value = h.hcode||''; $('fType').value = h.hos_type==='main'?'main':'sub';
+  $('fName').value = h.hname||''; $('fMain').value = h.main_hos_code||''; $('fNote').value = h.note||'';
+  syncMainCodeVisibility();
+  $('fHcode').focus();
+}
+function clearForm(){ ['fHcode','fName','fMain','fNote'].forEach(id=>$(id).value=''); $('fType').value='sub'; syncMainCodeVisibility(); hideResult($('adminResult')); }
+
+async function saveHospital(){
+  const res = $('adminResult'); hideResult(res);
+  const payload = {
+    hcode: $('fHcode').value.trim(),
+    hos_type: $('fType').value,
+    hname: $('fName').value.trim(),
+    main_hos_code: $('fMain').value.trim(),
+    note: $('fNote').value.trim(),
+  };
+  if(!payload.hcode){ showResult(res,'err','กรุณากรอกรหัส รพ.'); return; }
+  try{
+    const r = await fetch('/api/online/hospitals', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    const j = await r.json();
+    if(!r.ok){ showResult(res,'err', j.Message || `HTTP ${r.status}`); return; }
+    showResult(res,'ok','บันทึกสำเร็จ'); clearForm(); loadRegistry();
+  }catch(e){ showResult(res,'err','เรียก backend ไม่ได้'); }
+}
+
+async function delHospital(hcode){
+  if(!confirm(`ลบรหัส ${hcode} ออกจากทะเบียน?`)) return;
+  const res = $('adminResult'); hideResult(res);
+  try{
+    const r = await fetch('/api/online/hospitals/delete', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ hcode }) });
+    const j = await r.json();
+    if(!r.ok){ showResult(res,'err', j.Message || `HTTP ${r.status}`); return; }
+    showResult(res,'ok','ลบแล้ว'); loadRegistry();
+  }catch(e){ showResult(res,'err','เรียก backend ไม่ได้'); }
+}
+
+// ---- Init ----
+async function checkWritable(){
+  try{ const r = await fetch('/api/online/ping'); const j = await r.json(); $('writeWarn').style.display = (j && j.writable) ? 'none' : 'block'; }
+  catch(e){ $('writeWarn').style.display = 'block'; }
+}
+function init(){
+  $('loginBtn').addEventListener('click', doLogin);
+  $('hcode').addEventListener('keydown', e => { if(e.key === 'Enter') doLogin(); });
+  $('adminToggle').addEventListener('click', () => { const c = $('adminCard'); c.classList.toggle('show'); if(c.classList.contains('show')){ checkWritable(); loadRegistry(); } });
+  $('adminClose').addEventListener('click', () => $('adminCard').classList.remove('show'));
+  $('fType').addEventListener('change', syncMainCodeVisibility);
+  $('saveHosBtn').addEventListener('click', saveHospital);
+  $('clearFormBtn').addEventListener('click', clearForm);
+  $('reloadListBtn').addEventListener('click', loadRegistry);
+  syncMainCodeVisibility();
+  pingDb();
+}
+init();
+</script>
+</body>
+</html>

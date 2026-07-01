@@ -1,0 +1,1403 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบนัดหมายผู้ป่วย - BMS Appointment</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f0f4f8;
+    --surface: #ffffff;
+    --surface2: #e8eef4;
+    --border: #d0d9e3;
+    --text: #1a2332;
+    --text-muted: #5a6b7f;
+    --primary: #0891b2;
+    --primary-glow: rgba(8,145,178,0.1);
+    --success: #059669;
+    --success-bg: rgba(5,150,105,0.08);
+    --error: #dc2626;
+    --error-bg: rgba(220,38,38,0.08);
+    --warn: #d97706;
+    --warn-bg: rgba(217,119,6,0.08);
+    --accent: #0891b2;
+    --teal: #059669;
+    --purple: #7c3aed;
+    --orange: #ea580c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Sarabun', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.55;
+  }
+
+  /* ===== Header ===== */
+  .header {
+    background: #0f2044;
+    border-bottom: 1px solid #1a3060;
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    height: 52px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header-logo { display: flex; align-items: center; gap: 10px; }
+  .logo-shield {
+    width: 30px; height: 30px;
+    background: linear-gradient(135deg, #0891b2, #22d3ee);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 700; color: #fff;
+  }
+  .header h1 { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; white-space: nowrap; color: #fff; }
+  .header h1 span { color: #22d3ee; }
+  .header-spacer { flex: 1; }
+  .conn-badge {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 12px; border-radius: 20px;
+    font-size: 11px; font-weight: 700;
+  }
+  .conn-badge.disconnected { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.15); }
+  .conn-badge.connected { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+  .conn-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  .online-badge {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 12px; border-radius: 20px;
+    font-size: 11px; font-weight: 700; cursor: pointer;
+  }
+  .online-badge.unknown { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.15); }
+  .online-badge.ok { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+  .online-badge.fail { background: rgba(220,38,38,0.15); color: #f87171; border: 1px solid rgba(220,38,38,0.3); }
+
+  .gear-btn {
+    background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.85);
+    border: 1px solid rgba(255,255,255,0.15); border-radius: 8px;
+    width: 30px; height: 30px; font-size: 15px; cursor: pointer; line-height: 1;
+    display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+  }
+  .gear-btn:hover { background: rgba(34,211,238,0.18); color: #22d3ee; border-color: rgba(34,211,238,0.4); }
+
+  /* Settings form */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
+  .form-field { display: flex; flex-direction: column; gap: 5px; }
+  .form-field.span2 { grid-column: 1 / -1; }
+  .form-field label { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.3px; }
+  .form-field input {
+    padding: 9px 11px; border: 1px solid var(--border); border-radius: 7px;
+    font-size: 13px; font-family: inherit; background: var(--surface); color: var(--text);
+  }
+  .form-field input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); }
+  .form-field .hint { font-size: 11px; color: var(--text-muted); }
+  .form-check { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; user-select: none; }
+  .form-check input { width: 16px; height: 16px; }
+  .settings-result {
+    margin-top: 14px; padding: 10px 12px; border-radius: 8px; font-size: 12px;
+    display: none; white-space: pre-wrap; word-break: break-word;
+  }
+  .settings-result.show { display: block; }
+  .settings-result.ok { background: var(--success-bg); color: var(--success); border: 1px solid var(--success); }
+  .settings-result.err { background: var(--error-bg); color: var(--error); border: 1px solid var(--error); }
+  .settings-result.info { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
+  .modal-footer {
+    display: flex; gap: 10px; justify-content: flex-end;
+    padding: 14px 20px; border-top: 1px solid var(--border); background: var(--surface2);
+  }
+  .warn-note {
+    font-size: 12px; color: var(--warn); background: var(--warn-bg);
+    border: 1px solid rgba(217,119,6,0.3); border-radius: 8px; padding: 9px 11px; margin-bottom: 14px;
+  }
+  .hcode-badge {
+    display: none; align-items: center; gap: 6px;
+    padding: 4px 12px; border-radius: 20px;
+    font-size: 11px; font-weight: 700;
+    background: rgba(34,211,238,0.12); color: #22d3ee;
+    border: 1px solid rgba(34,211,238,0.3);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .hcode-badge.show { display: inline-flex; }
+  .hcode-badge .hcode-label {
+    font-size: 9px; color: rgba(255,255,255,0.5);
+    text-transform: uppercase; letter-spacing: 0.4px;
+    font-family: 'Sarabun', sans-serif;
+  }
+
+  /* ===== Layout ===== */
+  .main-content { max-width: 1800px; margin: 0 auto; padding: 16px 20px; }
+
+  /* ===== Filter card ===== */
+  .filter-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .filter-title {
+    font-size: 11px; font-weight: 700; color: var(--accent);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    margin-bottom: 12px; padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .filter-grid { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: end; }
+  .f-field { display: flex; flex-direction: column; gap: 4px; }
+  .f-field label {
+    font-size: 11px; font-weight: 700; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.3px;
+  }
+  .f-field input, .f-field select {
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 13px; font-family: inherit;
+    min-width: 150px;
+  }
+  .f-field input:focus, .f-field select:focus {
+    outline: none; border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-glow);
+  }
+  .f-check { display: flex; align-items: center; gap: 7px; font-size: 13px; cursor: pointer; user-select: none; }
+  .f-check input { width: 16px; height: 16px; cursor: pointer; }
+  .filter-spacer { flex: 1; }
+
+  .btn {
+    padding: 7px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: all 0.15s; font-family: inherit;
+    white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn-primary { background: linear-gradient(135deg, #0891b2, #22d3ee); color: #fff; border-color: var(--primary); font-weight: 700; }
+  .btn-primary:hover { filter: brightness(1.08); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; filter: none; }
+  .btn-sm { padding: 4px 10px; font-size: 11px; }
+
+  /* ===== Summary ===== */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px; margin-bottom: 14px;
+  }
+  .s-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    position: relative; overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .s-card .s-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; font-weight: 700; }
+  .s-card .s-val { font-size: 26px; font-weight: 700; font-family: 'JetBrains Mono', monospace; line-height: 1.1; margin-top: 2px; }
+  .s-card .s-bar { position: absolute; top: 0; left: 0; width: 4px; height: 100%; border-radius: 0 4px 4px 0; }
+  .s-card.total .s-val { color: var(--accent); }        .s-card.total .s-bar { background: var(--accent); }
+  .s-card.selected .s-val { color: var(--teal); }        .s-card.selected .s-bar { background: var(--teal); }
+  .s-card.pending .s-val { color: var(--warn); }         .s-card.pending .s-bar { background: var(--warn); }
+  .s-card.visited .s-val { color: var(--purple); }       .s-card.visited .s-bar { background: var(--purple); }
+  .s-card.notvisited .s-val { color: var(--orange); }    .s-card.notvisited .s-bar { background: var(--orange); }
+
+  /* ===== Table ===== */
+  .table-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .table-card-header {
+    display: flex; align-items: center;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    gap: 10px; flex-wrap: wrap;
+  }
+  .table-card-header h3 { font-size: 14px; font-weight: 700; }
+  .table-card-header .badge { font-size: 11px; font-weight: 700; padding: 1px 10px; border-radius: 10px; background: var(--primary); color: #fff; }
+  .table-card-header .spacer { flex: 1; }
+  .table-card-header .elapsed { font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+  .search-input {
+    padding: 5px 10px; border: 1px solid var(--border);
+    border-radius: 6px; background: var(--surface);
+    font-size: 12px; width: 240px; font-family: inherit;
+  }
+  .search-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); }
+
+  .table-wrap { overflow-x: auto; max-height: calc(100vh - 320px); overflow-y: auto; }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .data-table th {
+    background: var(--surface2); color: var(--accent);
+    font-size: 10px; font-weight: 700; text-align: left;
+    padding: 9px 10px; text-transform: uppercase; letter-spacing: 0.3px;
+    white-space: nowrap; position: sticky; top: 0; z-index: 1;
+    border-bottom: 1px solid var(--border);
+  }
+  .data-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .data-table tr:hover td { background: var(--surface2); }
+  .data-table tr.row-selected td { background: rgba(8,145,178,0.06); }
+  .data-table .null-val { color: var(--text-muted); font-style: italic; }
+  .data-table .mono { font-family: 'JetBrains Mono', monospace; }
+  .col-num, .col-sel { text-align: center; width: 42px; }
+  .data-table .ellipsis { max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; vertical-align: bottom; }
+  .row-check { width: 16px; height: 16px; cursor: pointer; }
+
+  .status-pill { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+  .status-pill.pending { background: rgba(217,119,6,0.15); color: var(--warn); }
+  .status-pill.confirmed { background: rgba(5,150,105,0.15); color: var(--success); }
+  .status-pill.cancelled { background: rgba(220,38,38,0.15); color: var(--error); }
+  .status-pill.unknown { background: var(--surface2); color: var(--text-muted); }
+  .status-pill.visited { background: rgba(124,58,237,0.15); color: var(--purple); }
+  .status-pill.notvisited { background: rgba(234,88,12,0.15); color: var(--orange); }
+
+  .icon-pill { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; margin-right: 3px; }
+  .icon-pill.lab { background: rgba(8,145,178,0.15); color: var(--primary); }
+  .icon-pill.xray { background: rgba(124,58,237,0.15); color: var(--purple); }
+
+  .time-cell { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--accent); white-space: nowrap; }
+  .queue-cell { display: inline-block; background: var(--primary); color: #fff; padding: 2px 9px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 11px; min-width: 36px; text-align: center; }
+  .pt-name { font-weight: 600; }
+  .pt-hn { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-muted); }
+
+  /* ===== Loading / Toast / Modal / Login (shared pattern) ===== */
+  .loading-overlay {
+    position: fixed; top: 52px; left: 0; right: 0; bottom: 0;
+    background: rgba(240,244,248,0.85);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 50; flex-direction: column; gap: 12px;
+  }
+  .loading-overlay .spinner-ring { width: 40px; height: 40px; border: 3px solid var(--border); border-top: 3px solid var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  .loading-overlay .loading-text { font-size: 13px; color: var(--text-muted); font-weight: 600; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .toast-wrap { position: fixed; bottom: 16px; right: 16px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; }
+  .toast { padding: 10px 16px; border-radius: 8px; font-size: 12px; font-weight: 600; animation: slideIn 0.3s ease; max-width: 380px; }
+  .toast.ok { background: var(--success-bg); color: var(--success); border: 1px solid var(--success); }
+  .toast.err { background: var(--error-bg); color: var(--error); border: 1px solid var(--error); }
+  .toast.info { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
+  @keyframes slideIn { from { transform: translateX(100%); opacity:0; } to { transform: translateX(0); opacity:1; } }
+
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(15,32,68,0.6); z-index: 200; display: none; align-items: center; justify-content: center; padding: 20px; }
+  .modal-backdrop.show { display: flex; }
+  .modal { background: var(--surface); border-radius: 12px; width: 100%; max-width: 760px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+  .modal-header { display: flex; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border); background: var(--surface2); }
+  .modal-header h3 { font-size: 16px; font-weight: 700; flex: 1; }
+  .modal-close { background: none; border: none; font-size: 22px; cursor: pointer; color: var(--text-muted); line-height: 1; padding: 4px 10px; border-radius: 6px; }
+  .modal-close:hover { background: var(--border); color: var(--text); }
+  .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
+  .detail-section { margin-bottom: 18px; }
+  .detail-section h4 { font-size: 12px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 2px solid var(--primary-glow); }
+  .detail-grid { display: grid; grid-template-columns: 160px 1fr; gap: 6px 16px; font-size: 13px; }
+  .detail-grid dt { color: var(--text-muted); font-weight: 600; padding: 5px 0; border-bottom: 1px solid var(--border); }
+  .detail-grid dd { color: var(--text); padding: 5px 0; border-bottom: 1px solid var(--border); word-break: break-word; }
+
+  .login-overlay { position: fixed; top: 52px; left: 0; right: 0; bottom: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 30; padding: 20px; }
+  .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 32px; max-width: 480px; width: 100%; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+  .login-card h2 { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+  .login-card p { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; line-height: 1.7; }
+  .login-card .field { margin-bottom: 14px; }
+  .login-card .field label { display: block; font-size: 12px; font-weight: 700; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.3px; }
+  .login-card .field input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; font-family: 'JetBrains Mono', monospace; }
+  .login-card .field input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); }
+  .login-card .btn-primary { width: 100%; padding: 11px; font-size: 14px; justify-content: center; }
+  .login-hint code { background: var(--surface2); padding: 1px 6px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent); }
+
+  @media (max-width: 768px) {
+    .main-content { padding: 10px; }
+    .f-field input, .f-field select { min-width: 130px; }
+    .detail-grid { grid-template-columns: 1fr; }
+  }
+
+  /* ===== Print ===== */
+  @media print {
+    .header, .filter-card, .summary-grid, .table-card-header, .col-sel, .no-print { display: none !important; }
+    body { background: #fff; font-size: 11px; }
+    .main-content { max-width: none; padding: 0; }
+    .table-card { border: none; box-shadow: none; }
+    .table-wrap { max-height: none; overflow: visible; }
+    .data-table th { background: #eee !important; color: #000 !important; -webkit-print-color-adjust: exact; }
+    .data-table td, .data-table th { border: 1px solid #999; }
+    .queue-cell, .status-pill, .icon-pill { background: transparent !important; color: #000 !important; border: 1px solid #999; }
+    .print-title { display: block !important; }
+  }
+  .print-title { display: none; text-align: center; font-size: 16px; font-weight: 700; margin: 10px 0; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-logo">
+    <div class="logo-shield">&#9990;</div>
+    <h1>BMS <span>ระบบนัดหมายผู้ป่วย</span></h1>
+  </div>
+  <div class="header-spacer"></div>
+  <div class="hcode-badge" id="hcodeBadge">
+    <span class="hcode-label">รหัส รพ.</span>
+    <span id="hcodeText">-</span>
+    <span id="hcodeName" style="font-family:'Sarabun',sans-serif;font-weight:600;color:rgba(255,255,255,0.85);"></span>
+  </div>
+  <div class="online-badge unknown" id="onlineBadge" title="คลิกเพื่อทดสอบการเชื่อมต่อฐานกลาง Online">
+    <div class="conn-dot"></div>
+    <span id="onlineText">ฐานกลาง: -</span>
+  </div>
+  <button class="gear-btn" id="settingsBtn" title="ตั้งค่าฐานกลาง Online">&#9881;</button>
+  <div class="conn-badge disconnected" id="connBadge">
+    <div class="conn-dot"></div>
+    <span id="connText">ยังไม่เชื่อมต่อ</span>
+  </div>
+  <a class="gear-btn" href="login.html" title="เปลี่ยนสถานพยาบาล / ออกจากระบบ" style="text-decoration:none;width:auto;padding:0 10px;font-size:12px;">&#8635;</a>
+</div>
+
+<!-- Main -->
+<div class="main-content" id="mainContent" style="display:none">
+
+  <!-- Filter -->
+  <div class="filter-card">
+    <div class="filter-title">ตัวกรอง (Filter)</div>
+    <div class="filter-grid">
+      <div class="f-field">
+        <label>วันที่นัด (เริ่ม)</label>
+        <input type="date" id="dateFrom">
+      </div>
+      <div class="f-field">
+        <label>ถึงวันที่</label>
+        <input type="date" id="dateTo">
+      </div>
+      <div class="f-field">
+        <label>หน่วยบริการ (sub_hos_name)</label>
+        <select id="subhosFilter"><option value="">— ทั้งหมด —</option></select>
+      </div>
+      <div class="filter-spacer"></div>
+      <div class="f-field">
+        <label style="visibility:hidden">.</label>
+        <label class="f-check"><input type="checkbox" id="sortLatest"> เรียงตามวันที่นัด (ล่าสุดก่อน)</label>
+      </div>
+      <button class="btn" id="todayBtn">วันนี้</button>
+      <button class="btn" id="tomorrowBtn">พรุ่งนี้</button>
+      <button class="btn" id="weekBtn">7 วัน</button>
+      <select id="autoRefreshSec" class="btn" title="ช่วงเวลา auto refresh">
+        <option value="0">Auto OFF</option>
+        <option value="30">Auto 30s</option>
+        <option value="60">Auto 60s</option>
+        <option value="120">Auto 2m</option>
+        <option value="300">Auto 5m</option>
+      </select>
+      <button class="btn btn-primary" id="refreshBtn">&#128269; แสดงข้อมูล</button>
+      <button class="btn" id="printBtn" title="พิมพ์รายการที่เลือก">&#128424; พิมพ์</button>
+      <button class="btn" id="syncBtn" title="ส่งรายการที่เลือก (หรือทั้งหมด) เข้าฐานกลาง Online">&#11014; ส่งเข้าฐานกลาง</button>
+      <button class="btn" id="logoutBtn" title="ออกจากระบบ">&#9099;</button>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div class="summary-grid">
+    <div class="s-card total"><div class="s-bar"></div><div class="s-label">นัดทั้งหมด</div><div class="s-val" id="cTotal">-</div></div>
+    <div class="s-card selected"><div class="s-bar"></div><div class="s-label">เลือกไว้</div><div class="s-val" id="cSelected">0</div></div>
+    <div class="s-card pending"><div class="s-bar"></div><div class="s-label">รอยืนยัน/รอถึงวันนัด</div><div class="s-val" id="cPending">-</div></div>
+    <div class="s-card visited"><div class="s-bar"></div><div class="s-label">ส่งตรวจแล้ว</div><div class="s-val" id="cVisited">-</div></div>
+    <div class="s-card notvisited"><div class="s-bar"></div><div class="s-label">ยังไม่ส่งตรวจ</div><div class="s-val" id="cNotVisited">-</div></div>
+  </div>
+
+  <!-- Table -->
+  <div class="table-card">
+    <div class="table-card-header">
+      <h3>รายการนัดหมาย</h3>
+      <span class="badge" id="tableCount">0</span>
+      <button class="btn btn-sm" id="selectAllBtn">เลือกทั้งหมด</button>
+      <button class="btn btn-sm" id="selectNoneBtn">ไม่เลือกทั้งหมด</button>
+      <input type="text" class="search-input" id="searchInput" placeholder="ค้นหา HN, ชื่อ, เบอร์โทร, คลินิก...">
+      <div class="spacer"></div>
+      <span class="elapsed" id="tableElapsed"></span>
+    </div>
+    <div class="print-title" id="printTitle"></div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th class="col-num">ลำดับ</th>
+            <th class="col-sel"><input type="checkbox" id="headCheck" class="row-check" title="เลือกทั้งหมด"></th>
+            <th>วันที่รับบริการ</th>
+            <th>วันนัดถัดไป</th>
+            <th>เวลานัดเริ่ม</th>
+            <th>เวลานัดถึง</th>
+            <th>HN</th>
+            <th>ชื่อผู้รับบริการ</th>
+            <th>หมายเลขโทรศัพท์</th>
+            <th>QS Slot</th>
+            <th>ผู้นัดหมาย</th>
+            <th>คลินิก</th>
+            <th>ห้องตรวจ</th>
+            <th>หน่วยบริการ</th>
+            <th>Lab/X-ray</th>
+            <th>เหตุที่นัด</th>
+            <th>สถานะ</th>
+            <th class="no-print"></th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <tr><td colspan="18" style="text-align:center;color:var(--text-muted);padding:40px;">— กดปุ่ม "แสดงข้อมูล" เพื่อโหลดรายการนัดหมาย —</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Login -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-card">
+    <h2>&#9990; เข้าสู่ระบบนัดหมายผู้ป่วย</h2>
+    <p class="login-hint">
+      ระบบต้องการ BMS Session ID เพื่อเชื่อมต่อกับฐานข้อมูล HOSxP<br>
+      เปิดจาก HOSxP ด้วย URL <code>?bms-session-id=...</code> หรือกรอก Session ID ด้านล่าง
+    </p>
+    <div class="field">
+      <label>BMS Session ID</label>
+      <input type="text" id="loginSessionInput" placeholder="ใส่ Session ID...">
+    </div>
+    <button class="btn btn-primary" id="loginBtn">เชื่อมต่อ</button>
+  </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-backdrop" id="detailModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="detailTitle">รายละเอียดการนัดหมาย</h3>
+      <button class="modal-close" id="detailClose">&times;</button>
+    </div>
+    <div class="modal-body" id="detailBody"></div>
+  </div>
+</div>
+
+<!-- Settings Modal (Central Online DB) -->
+<div class="modal-backdrop" id="settingsModal">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <h3>&#9881; ตั้งค่าฐานกลาง Online (PostgreSQL)</h3>
+      <button class="modal-close" id="settingsClose">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="warn-note">
+        ฐานกลางเชื่อมต่อผ่าน backend (server.js) — ต้องเปิดหน้านี้ผ่าน <b>start.bat</b> ไม่ใช่ไฟล์ตรงๆ<br>
+        Host แบบ <code>*.svc.cluster.local</code> ใช้ได้เมื่อรันในคลัสเตอร์ หรือทำ port-forward มาที่ <code>127.0.0.1</code>
+      </div>
+      <div class="form-grid">
+        <div class="form-field span2">
+          <label>Host</label>
+          <input type="text" id="setHost" placeholder="postgres.shared-databases.svc.cluster.local">
+        </div>
+        <div class="form-field">
+          <label>Port</label>
+          <input type="text" id="setPort" placeholder="5432">
+        </div>
+        <div class="form-field">
+          <label>Database</label>
+          <input type="text" id="setDatabase" placeholder="h99999_lab_app_online">
+        </div>
+        <div class="form-field">
+          <label>Username</label>
+          <input type="text" id="setUsername" placeholder="u99999_lab_app_online" autocomplete="off">
+        </div>
+        <div class="form-field">
+          <label>Password</label>
+          <input type="password" id="setPassword" placeholder="เว้นว่าง = ใช้รหัสเดิม" autocomplete="new-password">
+          <span class="hint">เว้นว่างไว้หากไม่ต้องการเปลี่ยนรหัสเดิม</span>
+        </div>
+        <div class="form-field span2">
+          <label class="form-check"><input type="checkbox" id="setAllowWrite"> อนุญาตให้เขียนข้อมูล (INSERT/UPDATE/DELETE) — ค่าเริ่มต้นอ่านอย่างเดียว</label>
+        </div>
+      </div>
+      <div class="settings-result" id="settingsResult"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="settingsTestBtn">ทดสอบการเชื่อมต่อ</button>
+      <button class="btn btn-primary" id="settingsSaveBtn">บันทึกและเชื่อมต่อ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Loading -->
+<div class="loading-overlay" id="loadingOverlay" style="display:none">
+  <div class="spinner-ring"></div>
+  <div class="loading-text" id="loadingText">Loading...</div>
+</div>
+
+<!-- Toast -->
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+// ================= Constants =================
+const SESSION_COOKIE_NAME = 'bms-session-id';
+const SESSION_COOKIE_DAYS = 7;
+const SESSION_URL_PARAM = 'bms-session-id';
+const DEFAULT_TIMEOUT = 30000;
+const APP_NAME = 'BMS.Appointment.Register';
+const LS_AUTO_REFRESH = 'appt-auto-refresh-sec';
+
+// ================= State =================
+let sessionConnected = false;
+let connectionConfig = null;
+let userInfo = null;
+let loginHcode = '';     // 5-digit hospital code from login -> scopes visible rows
+// Optional identity pinned by login.html (?hcode=) — overrides the session-derived code.
+const LOGIN_HCODE = (new URLSearchParams(location.search).get('hcode') || (() => { try { return (JSON.parse(sessionStorage.getItem('bms_login') || 'null') || {}).hcode || ''; } catch (e) { return ''; } })()).trim();
+const LOGIN_HNAME = (() => { try { return (JSON.parse(sessionStorage.getItem('bms_login') || 'null') || {}).hname || ''; } catch (e) { return ''; } })();
+let allRows = [];        // raw rows from query (each gets a synthetic _key)
+let filteredRows = [];   // after dropdown + search filters
+let selectedKeys = new Set();
+let autoRefreshTimer = null;
+
+// ================= Helpers =================
+function escHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escSql(s) { return String(s ?? '').replace(/'/g, "''"); }
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function dateOffsetStr(days) {
+  const d = new Date(); d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function fmtTime(t) { if (!t) return ''; const s = String(t); return s.length >= 5 ? s.substring(0,5) : s; }
+function fmtDate(d) {
+  if (!d) return '';
+  const s = String(d).substring(0,10);
+  if (!s.includes('-')) return s;
+  const [y,m,day] = s.split('-');
+  return `${day}/${m}/${y}`;
+}
+function fmtDateTime(d) {
+  if (!d) return '';
+  const s = String(d);
+  if (s.length >= 16) return `${fmtDate(s.substring(0,10))} ${s.substring(11,16)}`;
+  return fmtDate(s);
+}
+function showLoading(text) { document.getElementById('loadingText').textContent = text || 'Loading...'; document.getElementById('loadingOverlay').style.display = 'flex'; }
+function hideLoading() { document.getElementById('loadingOverlay').style.display = 'none'; }
+function showToast(type, msg) {
+  const wrap = document.getElementById('toastWrap');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`; t.textContent = msg;
+  wrap.appendChild(t);
+  setTimeout(() => t.remove(), 4000);
+}
+function minifySql(sql) { return String(sql).replace(/\s+/g, ' ').trim(); }
+
+// ================= Cookie / URL Session =================
+function getSessionCookie() {
+  const m = document.cookie.match(new RegExp('(?:^|; )' + SESSION_COOKIE_NAME + '=([^;]*)'));
+  return m ? decodeURIComponent(m[1]) : null;
+}
+function setSessionCookie(id) {
+  const expires = new Date(Date.now() + SESSION_COOKIE_DAYS * 864e5).toUTCString();
+  const secure = location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `${SESSION_COOKIE_NAME}=${encodeURIComponent(id)}; expires=${expires}; path=/${secure}; SameSite=Lax`;
+}
+function removeSessionCookie() { document.cookie = `${SESSION_COOKIE_NAME}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`; }
+function getSessionFromUrl() {
+  const p = new URLSearchParams(window.location.search).get(SESSION_URL_PARAM);
+  return p && p.trim() ? p.trim() : null;
+}
+function removeSessionFromUrl() {
+  const url = new URL(window.location.href);
+  if (url.searchParams.has(SESSION_URL_PARAM)) {
+    url.searchParams.delete(SESSION_URL_PARAM);
+    window.history.replaceState({}, '', url.toString());
+  }
+}
+
+// ================= Session validation / SQL =================
+async function validateSession(sessionId) {
+  try {
+    const url = `https://hosxp.net/phapi/PasteJSON?Action=GET&code=${encodeURIComponent(sessionId)}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const res = await fetch(url, { method: 'GET', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, signal: controller.signal, mode: 'cors' });
+    clearTimeout(timeoutId);
+    if (!res.ok) return { MessageCode: res.status, Message: `HTTP ${res.status}` };
+    return await res.json();
+  } catch (e) {
+    return { MessageCode: 0, Message: e.name === 'AbortError' ? 'Timeout' : 'Connection Error' };
+  }
+}
+function extractConnectionConfig(data) {
+  const result = data.result || {};
+  const ui = result.user_info || {};
+  let apiUrl, apiAuthKey;
+  if (result.key_value && typeof result.key_value === 'object') {
+    apiUrl = result.key_value['hosxp.api_url'];
+    apiAuthKey = result.key_value['hosxp.api_auth_key'];
+  }
+  if (!apiUrl) apiUrl = ui['hosxp.api_url'];
+  if (!apiAuthKey) apiAuthKey = ui['hosxp.api_auth_key'];
+  if (!apiUrl) apiUrl = ui.bms_url;
+  if (!apiAuthKey) apiAuthKey = ui.bms_session_code;
+  return { apiUrl: (apiUrl || '').replace(/\/$/, ''), apiAuthKey: apiAuthKey || '' };
+}
+// Query HOSxP via the local server.js proxy (browser never hits the tunnel directly
+// -> no CORS, and tunnel-down shows a clear error instead of "Failed to fetch").
+async function executeSql(sql) {
+  if (!sessionConnected || !connectionConfig) return { ok: false, error: 'Not connected' };
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT);
+    const res = await fetch('/api/hosxp/sql', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiUrl: connectionConfig.apiUrl, authKey: connectionConfig.apiAuthKey, sql: minifySql(sql) }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    const j = await res.json();
+    if (j.ok) return { ok: true, data: j.data || [] };
+    return { ok: false, error: j.error || `HTTP ${j.status || res.status}` };
+  } catch (e) {
+    return { ok: false, error: e.name === 'AbortError' ? 'Timeout' : 'เรียก backend ไม่ได้ — เปิดผ่าน start.bat (server.js)' };
+  }
+}
+
+// ================= Connect / Disconnect =================
+async function connectSession(sessionId) {
+  showLoading('กำลังเชื่อมต่อ Session...');
+  const data = await validateSession(sessionId);
+  if (!data || data.MessageCode !== 200) {
+    hideLoading();
+    showToast('err', data?.Message || 'เชื่อมต่อ Session ไม่สำเร็จ');
+    return false;
+  }
+  connectionConfig = extractConnectionConfig(data);
+  userInfo = data.result?.user_info || {};
+  if (!connectionConfig.apiUrl) { hideLoading(); showToast('err', 'ไม่พบ API URL ใน Session'); return false; }
+  sessionConnected = true;
+  setSessionCookie(sessionId);
+
+  document.getElementById('connBadge').className = 'conn-badge connected';
+  document.getElementById('connText').textContent = userInfo.name || userInfo.location || 'Connected';
+  document.getElementById('loginOverlay').style.display = 'none';
+  document.getElementById('mainContent').style.display = 'block';
+
+  await loadHospitalCode();
+  hideLoading();
+  return true;
+}
+async function loadHospitalCode() {
+  let hcode = userInfo?.hcode || userInfo?.hospital_code || userInfo?.hospcode || '';
+  let hname = userInfo?.location || userInfo?.hospital_name || '';
+  if (!hcode) {
+    const r = await executeSql("SELECT hospitalcode, hospitalname FROM opdconfig LIMIT 1");
+    if (r.ok && r.data && r.data[0]) { hcode = r.data[0].hospitalcode || ''; if (!hname) hname = r.data[0].hospitalname || ''; }
+  }
+  // Login page can pin the scope via ?hcode= (main hospital code from hospital_registry).
+  if (LOGIN_HCODE) { hcode = LOGIN_HCODE; if (LOGIN_HNAME) hname = LOGIN_HNAME; }
+  loginHcode = String(hcode || '').trim();
+  const badge = document.getElementById('hcodeBadge');
+  if (hcode) {
+    document.getElementById('hcodeText').textContent = hcode;
+    document.getElementById('hcodeName').textContent = hname ? ` · ${hname}` : '';
+    badge.classList.add('show');
+  } else badge.classList.remove('show');
+}
+function disconnect() {
+  sessionConnected = false; connectionConfig = null; userInfo = null;
+  removeSessionCookie();
+  document.getElementById('connBadge').className = 'conn-badge disconnected';
+  document.getElementById('connText').textContent = 'ยังไม่เชื่อมต่อ';
+  document.getElementById('hcodeBadge').classList.remove('show');
+  document.getElementById('mainContent').style.display = 'none';
+  document.getElementById('loginOverlay').style.display = 'flex';
+  stopAutoRefresh();
+  showToast('info', 'ออกจากระบบแล้ว');
+}
+
+// ================= Main Query =================
+// Scoped to this hospital's contact points via INNER JOIN oapp_contact, then by
+// the 5-digit login code (loginHcode):
+//   • login = main_hos_code (oc.hos_guid_ext) -> show ALL sub_hos_code under it
+//   • login = sub_hos_code  (oc.hos_guid)     -> show ONLY that sub
+// The single OR condition below covers both cases.
+function buildMainSql() {
+  const dateFrom = document.getElementById('dateFrom').value || todayStr();
+  const dateTo = document.getElementById('dateTo').value || dateFrom;
+  const statusEl = document.getElementById('statusFilter');
+  const status = (statusEl && statusEl.value) || 'active';   // default: open appointments only
+  const sortLatest = document.getElementById('sortLatest').checked;
+
+  let statusClause = '';
+  if (status === 'active') statusClause = " AND ((o.oapp_status_id < 4) OR o.oapp_status_id IS NULL) ";
+  else if (status === 'closed') statusClause = " AND o.oapp_status_id >= 4 ";
+
+  // Access scope by login hospital code (main sees all subs, sub sees only itself)
+  const hc = escSql(loginHcode);
+  const scopeClause = loginHcode
+    ? ` AND (oc.hos_guid_ext = '${hc}' OR oc.hos_guid = '${hc}') `
+    : '';
+
+  const orderBy = sortLatest ? 'o.nextdate DESC, o.nexttime DESC' : 'o.nextdate, o.nexttime';
+
+  // LEAN list query — mirrors the master query's column list, minus the parts
+  // that must stay out of the GET URL (≤2048 chars) or are API-blocked:
+  //  • doctor_name / opduser(app_user) joins removed → ผู้นัดหมาย shows o.doctor code.
+  //  • visit_vn (empty = ยังไม่ส่งตรวจ) replaces the Thai COALESCE literal to save URL length.
+  //  • addr_name / note / spclty / referin / message-send → loaded on demand in the detail modal.
+  return `
+    SELECT
+      o.oapp_id, o.clinic, o.doctor, o.depcode,
+      o.hn, o.vstdate, o.nextdate, o.nexttime, o.nexttime_end,
+      o.app_cause, o.oapp_status_id,
+      CAST(concat(p.pname, p.fname, ' ', p.lname) AS VARCHAR(200)) AS ptname,
+      p.cid, p.mobile_phone_number,
+      c.name AS clinic_name, k.department,
+      o2.oapp_status_name, qs.queue_slot_number,
+      o.lab_list_text::VARCHAR(500) AS lab_list_text,
+      o.xray_list_text::VARCHAR(500) AS xray_list_text,
+      COALESCE(ov.vn, '') AS visit_vn,
+      oc."name" AS sub_hos_name, oc.hos_guid AS sub_hos_code,
+      oc.hos_guid_ext AS main_hos_code
+    FROM oapp o
+      LEFT OUTER JOIN patient p ON p.hn = o.hn
+      LEFT OUTER JOIN clinic c ON c.clinic = o.clinic
+      LEFT OUTER JOIN kskdepartment k ON k.depcode = o.depcode
+      LEFT OUTER JOIN oapp_status o2 ON o2.oapp_status_id = o.oapp_status_id
+      LEFT OUTER JOIN opd_qs_slot qs ON qs.opd_qs_slot_id = o.opd_qs_slot_id
+      LEFT OUTER JOIN ovst ov ON ov.vn = o.visit_vn
+      INNER JOIN oapp_contact oc ON oc."name" = o.contact_point
+    WHERE o.nextdate BETWEEN '${escSql(dateFrom)}' AND '${escSql(dateTo)}'
+      ${statusClause}${scopeClause}
+    ORDER BY ${orderBy}
+  `;
+}
+
+// Detail-only fields, fetched lazily when the modal opens (single row, short URL).
+function buildDetailSql(oappId) {
+  const idClause = (Number.isInteger(Number(oappId)) && String(Number(oappId)) === String(oappId).trim())
+    ? `o.oapp_id=${Number(oappId)}` : `o.oapp_id='${escSql(oappId)}'`;
+  return `
+    SELECT o.vn, o.note, o.spclty, o.referin_vn,
+      r1.referin_number, om.rt_send_status,
+      om.confirm_datetime AS mp_confirm_datetime,
+      concat(p.addrpart, ' หมู่ ', p.moopart,
+        CASE WHEN LENGTH(p.road) > 0 THEN concat(' ถนน', p.road) ELSE '' END,
+        ' ', t.full_name)::VARCHAR(200) AS addr_name
+    FROM oapp o
+      LEFT OUTER JOIN patient p ON p.hn = o.hn
+      LEFT OUTER JOIN thaiaddress t ON t.chwpart = p.chwpart AND t.amppart = p.amppart AND t.tmbpart = p.tmbpart AND t.codetype = '3'
+      LEFT OUTER JOIN referin r1 ON r1.vn = o.referin_vn
+      LEFT OUTER JOIN oapp_message_send om ON om.oapp_id = o.oapp_id
+    WHERE ${idClause}
+  `;
+}
+
+// ================= Load Data =================
+async function loadAppointments() {
+  if (!sessionConnected) return;
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true; btn.textContent = 'กำลังโหลด...';
+  showLoading('กำลังดึงข้อมูลนัดหมาย...');
+
+  const startTime = Date.now();
+  const r = await executeSql(buildMainSql());
+  const elapsed = Date.now() - startTime;
+
+  btn.disabled = false; btn.innerHTML = '&#128269; แสดงข้อมูล';
+  hideLoading();
+
+  if (!r.ok) {
+    showToast('err', `Query ผิดพลาด: ${r.error}`);
+    document.getElementById('tableBody').innerHTML = `<tr><td colspan="18" style="text-align:center;color:var(--error);padding:40px;">${escHtml(r.error)}</td></tr>`;
+    return;
+  }
+
+  allRows = (r.data || []).map((row, i) => ({ ...row, _key: rowKey(row, i) }));
+  // Drop selections no longer present
+  const present = new Set(allRows.map(x => x._key));
+  selectedKeys = new Set([...selectedKeys].filter(k => present.has(k)));
+
+  document.getElementById('tableElapsed').textContent = `${elapsed}ms`;
+  rebuildFilterOptions();
+  applyFilter();
+  renderSummary();
+
+  // Access-scope hint (main sees all subs, sub sees only itself)
+  let scopeMsg = '';
+  if (loginHcode) {
+    const isMain = allRows.some(r => String(r.main_hos_code ?? '') === loginHcode);
+    const subCount = new Set(allRows.map(r => String(r.sub_hos_code ?? '')).filter(Boolean)).size;
+    scopeMsg = isMain
+      ? ` · หน่วยแม่ ${loginHcode} (เห็น ${subCount} หน่วยลูก)`
+      : ` · เฉพาะหน่วย ${loginHcode}`;
+  }
+  showToast('ok', `พบ ${allRows.length} รายการ (${elapsed}ms)${scopeMsg}`);
+}
+
+function rowKey(row, i) {
+  return (row.oapp_id != null && String(row.oapp_id) !== '') ? `id:${row.oapp_id}` : `idx:${i}:${row.hn || ''}:${row.nextdate || ''}`;
+}
+function ptName(r) { return String(r.ptname ?? '').replace(/\s+/g, ' ').trim(); }
+function isVisited(r) {
+  // visit_vn present in the list query; visit_status kept as fallback
+  if (r.visit_vn !== undefined) return !!String(r.visit_vn || '').trim();
+  const vs = String(r.visit_status || '');
+  return !!vs && vs !== 'ยังไม่ส่งตรวจ';
+}
+
+// ================= Filter dropdown options =================
+function rebuildFilterOptions() {
+  fillSelect('subhosFilter', distinctPairs('sub_hos_code', 'sub_hos_name'));
+}
+function distinctPairs(codeKey, nameKey) {
+  const map = new Map();
+  for (const r of allRows) {
+    const code = r[codeKey];
+    if (code == null || String(code) === '') continue;
+    if (!map.has(String(code))) map.set(String(code), r[nameKey] || '');
+  }
+  return [...map.entries()].sort((a,b) => a[0].localeCompare(b[0]));
+}
+function fillSelect(id, pairs) {
+  const sel = document.getElementById(id);
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">— ทั้งหมด —</option>';
+  for (const [code, name] of pairs) {
+    const opt = document.createElement('option');
+    opt.value = code;
+    opt.textContent = name ? `${code} — ${name}` : code;
+    sel.appendChild(opt);
+  }
+  if ([...sel.options].some(o => o.value === prev)) sel.value = prev;
+}
+
+// ================= Apply filters + search =================
+function applyFilter() {
+  const term = document.getElementById('searchInput').value.trim().toLowerCase();
+  const subhos = document.getElementById('subhosFilter').value;
+
+  filteredRows = allRows.filter(r => {
+    if (subhos && String(r.sub_hos_code ?? '') !== subhos) return false;
+    if (term) {
+      const hay = [r.hn, ptName(r), r.mobile_phone_number, r.clinic_name, r.department, r.doctor, r.app_cause, r.queue_slot_number, r.sub_hos_name]
+        .map(v => String(v ?? '').toLowerCase()).join(' ');
+      if (!hay.includes(term)) return false;
+    }
+    return true;
+  });
+  renderTable();
+}
+
+// ================= Summary =================
+function renderSummary() {
+  const total = allRows.length;
+  let pending = 0, visited = 0, notVisited = 0;
+  for (const r of allRows) {
+    const sid = r.oapp_status_id ?? null;
+    if (sid == null || sid === 1 || sid === '1') pending++;
+    if (isVisited(r)) visited++; else notVisited++;
+  }
+  document.getElementById('cTotal').textContent = total.toLocaleString();
+  document.getElementById('cPending').textContent = pending.toLocaleString();
+  document.getElementById('cVisited').textContent = visited.toLocaleString();
+  document.getElementById('cNotVisited').textContent = notVisited.toLocaleString();
+  updateSelectedCount();
+}
+function updateSelectedCount() {
+  document.getElementById('cSelected').textContent = selectedKeys.size.toLocaleString();
+}
+
+// ================= Render Table =================
+function renderTable() {
+  const tbody = document.getElementById('tableBody');
+  document.getElementById('tableCount').textContent = filteredRows.length;
+
+  if (filteredRows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="18" style="text-align:center;color:var(--text-muted);padding:40px;">ไม่พบข้อมูล</td></tr>';
+    syncHeadCheck();
+    return;
+  }
+
+  tbody.innerHTML = filteredRows.map((r, idx) => {
+    const sid = r.oapp_status_id;
+    const statusName = r.oapp_status_name || (sid == null ? 'รอยืนยัน' : `Status ${sid}`);
+    const statusClass = (sid === 2 || sid === '2') ? 'confirmed'
+      : (sid == null || sid === 1 || sid === '1') ? 'pending'
+      : (sid >= 4) ? 'cancelled' : 'unknown';
+    const queue = r.queue_slot_number ? `<span class="queue-cell">${escHtml(r.queue_slot_number)}</span>` : '<span class="null-val">-</span>';
+    const phone = r.mobile_phone_number ? escHtml(r.mobile_phone_number) : '<span class="null-val">-</span>';
+    const hasLab = !!(r.lab_list_text && String(r.lab_list_text).trim());
+    const hasXray = !!(r.xray_list_text && String(r.xray_list_text).trim());
+    const labXray = [
+      hasLab ? '<span class="icon-pill lab">LAB</span>' : '',
+      hasXray ? '<span class="icon-pill xray">X-RAY</span>' : '',
+    ].join('') || '<span class="null-val">-</span>';
+    const cause = r.app_cause ? `<span class="ellipsis" title="${escHtml(r.app_cause)}">${escHtml(r.app_cause)}</span>` : '<span class="null-val">-</span>';
+    const clinicTxt = r.clinic_name || r.clinic || '';
+    const roomTxt = r.department || r.depcode || '';
+    const checked = selectedKeys.has(r._key) ? 'checked' : '';
+    const rowCls = selectedKeys.has(r._key) ? 'row-selected' : '';
+
+    return `<tr class="${rowCls}" data-key="${escHtml(r._key)}">
+      <td class="col-num mono">${idx + 1}</td>
+      <td class="col-sel"><input type="checkbox" class="row-check" data-key="${escHtml(r._key)}" ${checked}></td>
+      <td class="mono">${escHtml(fmtDate(r.vstdate)) || '<span class="null-val">-</span>'}</td>
+      <td class="mono">${escHtml(fmtDate(r.nextdate))}</td>
+      <td><span class="time-cell">${escHtml(fmtTime(r.nexttime)) || '-'}</span></td>
+      <td><span class="time-cell">${escHtml(fmtTime(r.nexttime_end)) || '-'}</span></td>
+      <td><span class="pt-hn">${escHtml(r.hn || '')}</span></td>
+      <td><div class="pt-name">${escHtml(ptName(r))}</div></td>
+      <td class="mono">${phone}</td>
+      <td>${queue}</td>
+      <td><span class="ellipsis mono" title="${escHtml(r.doctor || '')}">${escHtml(r.doctor || '-')}</span></td>
+      <td><span class="ellipsis" title="${escHtml(clinicTxt)}">${escHtml(clinicTxt || '-')}</span></td>
+      <td><span class="ellipsis" title="${escHtml(roomTxt)}">${escHtml(roomTxt || '-')}</span></td>
+      <td><span class="ellipsis" title="${escHtml(r.sub_hos_name || '')}">${escHtml(r.sub_hos_name || '-')}</span></td>
+      <td>${labXray}</td>
+      <td>${cause}</td>
+      <td><span class="status-pill ${statusClass}">${escHtml(statusName)}</span></td>
+      <td class="no-print"><button class="btn btn-sm" data-detail="${idx}">รายละเอียด</button></td>
+    </tr>`;
+  }).join('');
+
+  tbody.querySelectorAll('input.row-check').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const key = cb.dataset.key;
+      if (cb.checked) selectedKeys.add(key); else selectedKeys.delete(key);
+      cb.closest('tr').classList.toggle('row-selected', cb.checked);
+      updateSelectedCount(); syncHeadCheck();
+    });
+  });
+  tbody.querySelectorAll('button[data-detail]').forEach(b => {
+    b.addEventListener('click', () => openDetail(filteredRows[parseInt(b.dataset.detail, 10)]));
+  });
+  syncHeadCheck();
+}
+
+function syncHeadCheck() {
+  const head = document.getElementById('headCheck');
+  if (!filteredRows.length) { head.checked = false; head.indeterminate = false; return; }
+  const sel = filteredRows.filter(r => selectedKeys.has(r._key)).length;
+  head.checked = sel === filteredRows.length;
+  head.indeterminate = sel > 0 && sel < filteredRows.length;
+}
+function setSelectionForFiltered(on) {
+  for (const r of filteredRows) { if (on) selectedKeys.add(r._key); else selectedKeys.delete(r._key); }
+  renderTable(); updateSelectedCount();
+}
+
+// ================= Detail Modal =================
+async function openDetail(row) {
+  if (!row) return;
+  document.getElementById('detailTitle').textContent = `${ptName(row) || '-'} (HN ${row.hn || '-'})`;
+  document.getElementById('detailBody').innerHTML =
+    '<div style="text-align:center;padding:40px;color:var(--text-muted);">กำลังโหลดรายละเอียด...</div>';
+  document.getElementById('detailModal').classList.add('show');
+
+  // Lazy-load detail-only fields (address, note, spclty, referin, message-send)
+  let detail = { ...row };
+  if (row.oapp_id != null && String(row.oapp_id) !== '') {
+    const r = await executeSql(buildDetailSql(row.oapp_id));
+    if (r.ok && r.data && r.data[0]) detail = { ...row, ...r.data[0] };
+  }
+  renderDetail(detail);
+}
+
+function renderDetail(row) {
+  const sid = row.oapp_status_id;
+  const statusName = row.oapp_status_name || (sid == null ? 'รอยืนยัน' : `Status ${sid}`);
+  const time = `${fmtTime(row.nexttime) || '-'}${row.nexttime_end ? ' - ' + fmtTime(row.nexttime_end) : ''}`;
+
+  const sections = [
+    { title: 'ข้อมูลการนัด', items: [
+      ['วันที่รับบริการ', fmtDate(row.vstdate)],
+      ['วันนัดถัดไป', fmtDate(row.nextdate)],
+      ['ช่วงเวลานัด', time],
+      ['QS Slot', row.queue_slot_number || '-'],
+      ['สถานะนัด', statusName],
+      ['ผู้นัดหมาย (รหัสแพทย์)', row.doctor || '-'],
+      ['คลินิก', row.clinic_name || row.clinic || '-'],
+      ['ห้องตรวจ/แผนก', row.department || row.depcode || '-'],
+      ['สาขา (Specialty)', row.spclty || '-'],
+      ['เหตุที่นัด', row.app_cause || '-'],
+      ['หมายเหตุ', row.note || '-'],
+      ['Referin No.', row.referin_number || '-'],
+      ['หน่วยบริการ', row.sub_hos_name || '-'],
+      ['รหัสหน่วยลูก (sub_hos_code)', row.sub_hos_code || '-'],
+      ['รหัสหน่วยแม่ (main_hos_code)', row.main_hos_code || '-'],
+    ]},
+    { title: 'ข้อมูลผู้ป่วย', items: [
+      ['HN', row.hn || '-'],
+      ['ชื่อ-นามสกุล', ptName(row) || '-'],
+      ['เบอร์โทรศัพท์', row.mobile_phone_number || '-'],
+      ['ที่อยู่', row.addr_name || '-'],
+      ['VN ครั้งก่อน', row.vn || '-'],
+    ]},
+    { title: 'การส่งตรวจ / ข้อความ', items: [
+      ['สถานะส่งตรวจ', isVisited(row) ? `ส่งตรวจแล้ว (VN ${row.visit_vn || row.visit_status || ''})` : 'ยังไม่ส่งตรวจ'],
+      ['สถานะส่งข้อความ', row.rt_send_status || '-'],
+      ['ยืนยันเมื่อ', fmtDateTime(row.mp_confirm_datetime) || '-'],
+    ]},
+  ];
+
+  const dlHtml = sections.map(sec => {
+    const rows = sec.items.map(([k,v]) => `<dt>${escHtml(k)}</dt><dd>${escHtml(String(v ?? '-'))}</dd>`).join('');
+    return `<div class="detail-section"><h4>${escHtml(sec.title)}</h4><dl class="detail-grid">${rows}</dl></div>`;
+  }).join('');
+
+  const labHtml = (row.lab_list_text || row.xray_list_text) ? `<div class="detail-section">
+    <h4>รายการสั่งตรวจ</h4>
+    <dl class="detail-grid">
+      <dt>Lab</dt><dd>${escHtml(row.lab_list_text || '-')}</dd>
+      <dt>X-ray</dt><dd>${escHtml(row.xray_list_text || '-')}</dd>
+    </dl></div>` : '';
+
+  document.getElementById('detailBody').innerHTML = dlHtml + labHtml;
+}
+function closeDetail() { document.getElementById('detailModal').classList.remove('show'); }
+
+// ================= Print =================
+function printSelected() {
+  const rows = selectedKeys.size ? filteredRows.filter(r => selectedKeys.has(r._key)) : filteredRows;
+  if (!rows.length) { showToast('info', 'ไม่มีรายการให้พิมพ์'); return; }
+
+  const dateFrom = fmtDate(document.getElementById('dateFrom').value);
+  const dateTo = fmtDate(document.getElementById('dateTo').value);
+  const hname = document.getElementById('hcodeName').textContent.replace(/^ · /, '') || '';
+  const scope = selectedKeys.size ? `เฉพาะที่เลือก ${rows.length} รายการ` : `ทั้งหมด ${rows.length} รายการ`;
+
+  const body = rows.map((r, i) => `
+    <tr>
+      <td style="text-align:center">${i+1}</td>
+      <td>${escHtml(fmtDate(r.nextdate))}</td>
+      <td>${escHtml(fmtTime(r.nexttime))}${r.nexttime_end ? '-' + escHtml(fmtTime(r.nexttime_end)) : ''}</td>
+      <td>${escHtml(r.hn || '')}</td>
+      <td>${escHtml(ptName(r))}</td>
+      <td>${escHtml(r.mobile_phone_number || '')}</td>
+      <td style="text-align:center">${escHtml(r.queue_slot_number || '')}</td>
+      <td>${escHtml(r.doctor || '')}</td>
+      <td>${escHtml(r.clinic_name || r.clinic || '')}</td>
+      <td>${escHtml(r.department || r.depcode || '')}</td>
+      <td>${escHtml(r.sub_hos_name || '')}</td>
+      <td>${escHtml(r.app_cause || '')}</td>
+      <td>${escHtml(r.oapp_status_name || '')}</td>
+    </tr>`).join('');
+
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">
+    <title>พิมพ์รายการนัดหมาย</title>
+    <style>
+      body{font-family:'Sarabun','TH Sarabun New',sans-serif;font-size:12px;padding:16px;color:#000;}
+      h2{text-align:center;margin:0 0 4px;} .sub{text-align:center;color:#444;margin-bottom:12px;font-size:12px;}
+      table{width:100%;border-collapse:collapse;} th,td{border:1px solid #999;padding:4px 6px;}
+      th{background:#eee;font-size:11px;text-align:left;} tfoot td{border:none;padding-top:10px;font-size:11px;color:#444;}
+    </style></head><body>
+    <h2>ทะเบียนนัดหมายผู้ป่วย${hname ? ' — ' + escHtml(hname) : ''}</h2>
+    <div class="sub">ช่วงวันที่นัด ${dateFrom} ถึง ${dateTo} · ${scope}</div>
+    <table>
+      <thead><tr>
+        <th>ลำดับ</th><th>วันนัด</th><th>เวลา</th><th>HN</th><th>ชื่อผู้รับบริการ</th>
+        <th>โทรศัพท์</th><th>QS</th><th>ผู้นัดหมาย</th><th>คลินิก</th><th>ห้องตรวจ</th><th>หน่วยบริการ</th><th>เหตุที่นัด</th><th>สถานะ</th>
+      </tr></thead>
+      <tbody>${body}</tbody>
+      <tfoot><tr><td colspan="13">พิมพ์เมื่อ ${escHtml(fmtDateTime(new Date().toISOString()))}</td></tr></tfoot>
+    </table>
+    </body></html>`);
+  win.document.close();
+  // Print from the parent window so the child needs no inline script tag at all
+  setTimeout(() => { try { win.focus(); win.print(); } catch (e) {} }, 300);
+}
+
+// ================= Auto Refresh =================
+function startAutoRefresh() {
+  stopAutoRefresh();
+  const sec = parseInt(document.getElementById('autoRefreshSec').value, 10) || 0;
+  if (!sec) return;
+  autoRefreshTimer = setInterval(() => { if (sessionConnected) loadAppointments(); }, sec * 1000);
+}
+function stopAutoRefresh() { if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; } }
+
+// ================= Events =================
+function setupEvents() {
+  document.getElementById('refreshBtn').addEventListener('click', loadAppointments);
+  document.getElementById('todayBtn').addEventListener('click', () => { const t = todayStr(); document.getElementById('dateFrom').value = t; document.getElementById('dateTo').value = t; loadAppointments(); });
+  document.getElementById('tomorrowBtn').addEventListener('click', () => { const t = dateOffsetStr(1); document.getElementById('dateFrom').value = t; document.getElementById('dateTo').value = t; loadAppointments(); });
+  document.getElementById('weekBtn').addEventListener('click', () => { document.getElementById('dateFrom').value = todayStr(); document.getElementById('dateTo').value = dateOffsetStr(6); loadAppointments(); });
+
+  document.getElementById('searchInput').addEventListener('input', applyFilter);
+  document.getElementById('subhosFilter').addEventListener('change', applyFilter);
+  document.getElementById('sortLatest').addEventListener('change', loadAppointments);
+
+  document.getElementById('selectAllBtn').addEventListener('click', () => setSelectionForFiltered(true));
+  document.getElementById('selectNoneBtn').addEventListener('click', () => setSelectionForFiltered(false));
+  document.getElementById('headCheck').addEventListener('change', e => setSelectionForFiltered(e.target.checked));
+  document.getElementById('printBtn').addEventListener('click', printSelected);
+  document.getElementById('syncBtn').addEventListener('click', syncToOnline);
+
+  document.getElementById('autoRefreshSec').addEventListener('change', e => {
+    localStorage.setItem(LS_AUTO_REFRESH, e.target.value);
+    startAutoRefresh();
+    const sec = parseInt(e.target.value, 10) || 0;
+    showToast('info', sec ? `Auto refresh ทุก ${sec}s` : 'ปิด Auto refresh');
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', () => { if (confirm('ออกจากระบบและลบ Session?')) disconnect(); });
+
+  document.getElementById('detailClose').addEventListener('click', closeDetail);
+  document.getElementById('detailModal').addEventListener('click', e => { if (e.target.id === 'detailModal') closeDetail(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeDetail(); closeSettings(); } });
+
+  document.getElementById('loginBtn').addEventListener('click', async () => {
+    const sid = document.getElementById('loginSessionInput').value.trim();
+    if (!sid) { showToast('err', 'กรุณากรอก Session ID'); return; }
+    const ok = await connectSession(sid);
+    if (ok) { showToast('ok', 'เชื่อมต่อสำเร็จ'); await loadAppointments(); }
+  });
+  document.getElementById('loginSessionInput').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('loginBtn').click(); });
+}
+
+// ================= Central Online DB (via local backend proxy) =================
+// The browser cannot reach Postgres directly; server.js proxies it.
+// These only work when the page is served by server.js (start.bat), not file://.
+let onlineReady = false;
+
+async function queryOnline(sql) {
+  try {
+    const res = await fetch('/api/online/sql', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sql }),
+    });
+    const j = await res.json();
+    if (!res.ok || j.MessageCode !== 200) return { ok: false, error: j.Message || `HTTP ${res.status}` };
+    return { ok: true, data: j.data || [], elapsed: j.elapsed };
+  } catch (e) {
+    return { ok: false, error: 'เรียก backend ไม่ได้ (ต้องเปิดผ่าน start.bat / server.js)' };
+  }
+}
+
+// Push loaded appointments (selected, or all filtered) into the central DB.
+// Fetch lab_app_head / lab_app_order / lab_app_order_service from HOSxP for the given
+// oapp_ids. Children are joined to the head so each row carries link_oapp_id.
+// oapp_ids are chunked to keep each GET URL under the ~2048-char tunnel limit.
+async function fetchLabForOapps(oappIds) {
+  const head = [], order = [], service = [];
+  const BATCH = 50;
+  for (let i = 0; i < oappIds.length; i += BATCH) {
+    const inList = oappIds.slice(i, i + BATCH).map(id => `'${escSql(id)}'`).join(',');
+    const qHead  = `SELECT * FROM lab_app_head WHERE oapp_id IN (${inList})`;
+    const qOrder = `SELECT lo.*, lh.oapp_id AS link_oapp_id FROM lab_app_order lo JOIN lab_app_head lh ON lh.lab_app_order_number = lo.lab_app_order_number WHERE lh.oapp_id IN (${inList})`;
+    const qSvc   = `SELECT los.*, lh.oapp_id AS link_oapp_id FROM lab_app_order_service los JOIN lab_app_head lh ON lh.lab_app_order_number = los.lab_app_order_number WHERE lh.oapp_id IN (${inList})`;
+    const [rh, ro, rs] = await Promise.all([executeSql(qHead), executeSql(qOrder), executeSql(qSvc)]);
+    if (!rh.ok) throw new Error('lab_app_head: ' + rh.error);
+    if (!ro.ok) throw new Error('lab_app_order: ' + ro.error);
+    if (!rs.ok) throw new Error('lab_app_order_service: ' + rs.error);
+    head.push(...rh.data.map(x => ({ ...x, link_oapp_id: x.oapp_id })));
+    order.push(...ro.data);
+    service.push(...rs.data);
+  }
+  return { lab_app_head: head, lab_app_order: order, lab_app_order_service: service };
+}
+
+async function syncToOnline() {
+  const rows = selectedKeys.size ? filteredRows.filter(r => selectedKeys.has(r._key)) : filteredRows;
+  if (!rows.length) { showToast('info', 'ไม่มีรายการให้ส่ง'); return; }
+
+  const sourceHcode = (document.getElementById('hcodeText').textContent || '').trim();
+  const scope = selectedKeys.size ? `ที่เลือก ${rows.length} รายการ` : `ทั้งหมด ${rows.length} รายการ`;
+  if (!confirm(`ส่งข้อมูล${scope} เข้าฐานกลาง Online?\n(รายการเดิมที่ oapp_id ซ้ำจะถูกอัปเดตทับ)`)) return;
+
+  const payloadRows = rows.map(r => ({
+    oapp_id: r.oapp_id, hn: r.hn, cid: r.cid, ptname: ptName(r),
+    vstdate: r.vstdate, nextdate: r.nextdate, nexttime: r.nexttime, nexttime_end: r.nexttime_end,
+    doctor: r.doctor, clinic: r.clinic, clinic_name: r.clinic_name,
+    depcode: r.depcode, department: r.department, app_cause: r.app_cause,
+    oapp_status_id: r.oapp_status_id, oapp_status_name: r.oapp_status_name,
+    mobile_phone_number: r.mobile_phone_number, queue_slot_number: r.queue_slot_number,
+    lab_list_text: r.lab_list_text, xray_list_text: r.xray_list_text,
+    visit_vn: r.visit_vn, sub_hos_name: r.sub_hos_name, sub_hos_code: r.sub_hos_code,
+    main_hos_code: r.main_hos_code,
+  }));
+
+  const btn = document.getElementById('syncBtn');
+  const original = btn.innerHTML;
+  btn.disabled = true; btn.textContent = 'กำลังส่ง...';
+  showLoading('กำลังส่งข้อมูลเข้าฐานกลาง...');
+  try {
+    const res = await fetch('/api/online/appointments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source_hcode: sourceHcode, rows: payloadRows }),
+    });
+    const j = await res.json();
+    if (!(res.ok && j.MessageCode === 200)) {
+      showToast('err', j.Message || `ส่งไม่สำเร็จ (HTTP ${res.status})`);
+      return;
+    }
+    showToast('ok', `ส่งนัดสำเร็จ ${j.saved} รายการ${j.skipped ? ` (ข้าม ${j.skipped})` : ''} → ${j.table}`);
+
+    // --- ดึง lab จากฐานหลักตาม oapp_id แล้วส่งเข้าฐานกลาง ---
+    const oappIds = rows.map(r => String(r.oapp_id ?? '').trim()).filter(Boolean);
+    if (oappIds.length) {
+      btn.textContent = 'กำลังส่ง Lab...';
+      showLoading('กำลังดึง/ส่งข้อมูล Lab...');
+      try {
+        const labTables = await fetchLabForOapps(oappIds);
+        const labRes = await fetch('/api/online/lab', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source_hcode: sourceHcode, oapp_ids: oappIds, tables: labTables }),
+        });
+        const lj = await labRes.json();
+        if (labRes.ok && lj.MessageCode === 200) {
+          const s = lj.saved || {};
+          showToast('ok', `ส่ง Lab สำเร็จ: head ${s.lab_app_head || 0} · order ${s.lab_app_order || 0} · service ${s.lab_app_order_service || 0}`);
+        } else {
+          showToast('err', `ส่ง Lab ไม่สำเร็จ: ${lj.Message || 'HTTP ' + labRes.status}`);
+        }
+      } catch (e) {
+        showToast('err', `ดึง/ส่ง Lab ไม่สำเร็จ: ${e.message}`);
+      }
+    }
+  } catch (e) {
+    showToast('err', 'เรียก backend ไม่ได้ — เปิดผ่าน start.bat (server.js)');
+  } finally {
+    btn.disabled = false; btn.innerHTML = original;
+    hideLoading();
+  }
+}
+
+async function pingOnline() {
+  const badge = document.getElementById('onlineBadge');
+  const txt = document.getElementById('onlineText');
+  badge.className = 'online-badge unknown';
+  txt.textContent = 'ฐานกลาง: กำลังเช็ค...';
+  try {
+    const res = await fetch('/api/online/ping');
+    const j = await res.json();
+    if (res.ok && j.MessageCode === 200) {
+      onlineReady = true;
+      badge.className = 'online-badge ok';
+      txt.textContent = `ฐานกลาง: ${j.data?.db || 'online'} ✓`;
+      badge.title = `เชื่อมต่อฐานกลางสำเร็จ\nDB: ${j.data?.db}\nUser: ${j.data?.usr}\nเขียนได้: ${j.writable ? 'ใช่' : 'ไม่ (read-only)'}\n${j.data?.version || ''}`;
+    } else {
+      onlineReady = false;
+      badge.className = 'online-badge fail';
+      txt.textContent = 'ฐานกลาง: ต่อไม่ได้';
+      badge.title = j.Message || 'เชื่อมต่อฐานกลางไม่สำเร็จ';
+    }
+  } catch (e) {
+    onlineReady = false;
+    badge.className = 'online-badge fail';
+    txt.textContent = 'ฐานกลาง: offline';
+    badge.title = 'เปิดผ่าน start.bat (server.js) เพื่อใช้ฐานกลาง Online';
+  }
+}
+
+// ================= Settings (Central Online DB) =================
+function settingsResult(type, msg) {
+  const el = document.getElementById('settingsResult');
+  el.className = `settings-result show ${type}`;
+  el.textContent = msg;
+}
+
+async function openSettings() {
+  document.getElementById('settingsResult').className = 'settings-result';
+  document.getElementById('setPassword').value = '';
+  document.getElementById('settingsModal').classList.add('show');
+  try {
+    const res = await fetch('/api/online/config');
+    const j = await res.json();
+    const d = j.data || {};
+    document.getElementById('setHost').value = d.host || '';
+    document.getElementById('setPort').value = d.port || '5432';
+    document.getElementById('setDatabase').value = d.database || '';
+    document.getElementById('setUsername').value = d.username || '';
+    document.getElementById('setAllowWrite').checked = !!d.allowWrite;
+    document.getElementById('setPassword').placeholder = d.hasPassword ? 'เว้นว่าง = ใช้รหัสเดิม' : 'ใส่รหัสผ่าน';
+    if (!d.configured) settingsResult('info', 'ยังไม่ได้ตั้งค่าฐานกลาง — กรอกข้อมูลแล้วกดบันทึก');
+  } catch (e) {
+    settingsResult('err', 'โหลดค่าปัจจุบันไม่ได้ — เปิดหน้านี้ผ่าน start.bat (server.js) หรือไม่?');
+  }
+}
+function closeSettings() { document.getElementById('settingsModal').classList.remove('show'); }
+
+function readSettingsForm() {
+  return {
+    host: document.getElementById('setHost').value.trim(),
+    port: document.getElementById('setPort').value.trim() || '5432',
+    database: document.getElementById('setDatabase').value.trim(),
+    username: document.getElementById('setUsername').value.trim(),
+    password: document.getElementById('setPassword').value,   // blank = keep current
+    allowWrite: document.getElementById('setAllowWrite').checked,
+  };
+}
+
+async function postSettings(endpoint, btn, busyText) {
+  const original = btn.textContent;
+  btn.disabled = true; btn.textContent = busyText;
+  settingsResult('info', 'กำลังเชื่อมต่อ...');
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(readSettingsForm()),
+    });
+    const j = await res.json();
+    if (res.ok && j.MessageCode === 200) {
+      const d = j.data || {};
+      settingsResult('ok', `${j.Message}\nDB: ${d.db || '-'}\nUser: ${d.usr || '-'}\nเขียนได้: ${j.writable ? 'ใช่' : 'ไม่ (read-only)'}\n${d.version || ''}`);
+      return true;
+    }
+    settingsResult('err', j.Message || `ผิดพลาด (HTTP ${res.status})`);
+    return false;
+  } catch (e) {
+    settingsResult('err', 'เรียก backend ไม่ได้ — เปิดผ่าน start.bat (server.js)');
+    return false;
+  } finally {
+    btn.disabled = false; btn.textContent = original;
+  }
+}
+
+// ================= Init =================
+async function init() {
+  document.getElementById('dateFrom').value = todayStr();
+  document.getElementById('dateTo').value = todayStr();
+  const savedAuto = localStorage.getItem(LS_AUTO_REFRESH);
+  if (savedAuto !== null) document.getElementById('autoRefreshSec').value = savedAuto;
+  setupEvents();
+  document.getElementById('onlineBadge').addEventListener('click', pingOnline);
+  document.getElementById('settingsBtn').addEventListener('click', openSettings);
+  document.getElementById('settingsClose').addEventListener('click', closeSettings);
+  document.getElementById('settingsModal').addEventListener('click', e => { if (e.target.id === 'settingsModal') closeSettings(); });
+  document.getElementById('settingsTestBtn').addEventListener('click', e => postSettings('/api/online/test', e.target, 'กำลังทดสอบ...'));
+  document.getElementById('settingsSaveBtn').addEventListener('click', async e => {
+    const ok = await postSettings('/api/online/config', e.target, 'กำลังบันทึก...');
+    if (ok) { await pingOnline(); setTimeout(closeSettings, 1200); }
+  });
+  pingOnline();
+
+  const urlSessionId = getSessionFromUrl();
+  if (urlSessionId) {
+    removeSessionFromUrl();
+    if (await connectSession(urlSessionId)) { await loadAppointments(); startAutoRefresh(); return; }
+  }
+  const cookieSessionId = getSessionCookie();
+  if (cookieSessionId) {
+    if (await connectSession(cookieSessionId)) { await loadAppointments(); startAutoRefresh(); return; }
+  }
+  document.getElementById('loginOverlay').style.display = 'flex';
+}
+init();
+</script>
+</body>
+</html>
