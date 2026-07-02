@@ -81,6 +81,33 @@ BMS-Appointment/
 
 ---
 
+## 3.6 Login ด้วย MOPH Provider ID (ทางเลือก)
+
+ปุ่ม **"เข้าสู่ระบบด้วย Provider ID (MOPH)"** ในหน้า Login ให้บุคลากรล็อกอินด้วยบัญชี MOPH แล้ว route ตาม **ทะเบียน รพ. เดิม** (hcode จากสิทธิ์ที่สังกัด → `hospital_registry` → main/sub)
+
+```
+ปุ่ม → GET /api/auth/provider-id → redirect ไป moph.id.th
+     → กลับมาที่ /login.html?code=... 
+     → POST /api/auth/provider-id/exchange {code}
+        (server encrypt app_id ด้วย AES-256-CBC + Bearer code → BMS proxy)
+     → ได้ provider + organizations[].hcode
+     → 1 แห่ง = เข้าเลย / หลายแห่ง = เลือกก่อน → resolve ผ่านทะเบียน รพ.
+```
+
+### ตั้งค่า (`.env` หรือ Environment บน Render)
+| คีย์ | หมายเหตุ |
+|---|---|
+| `PROVIDER_ID_CLIENT_ID` | จาก BMS (มีค่าปริยายจาก collection) |
+| `PROVIDER_ID_APP_ID` | **ความลับ — ขอจาก BMS** (plain text, server จะ encrypt ให้) |
+| `PROVIDER_ID_SECRET_KEY` | **ความลับ — ขอจาก BMS** (AES key) |
+| `PROVIDER_ID_REDIRECT_URI` | ต้อง **ตรงเป๊ะ** กับที่ลงทะเบียนกับ BMS และชี้มาที่ `/login.html` |
+| `PROVIDER_ID_AUTH_URL` / `PROVIDER_ID_TOKEN_URL` | ค่าปริยายมักไม่ต้องแก้ |
+
+> ⚠️ ต้องขอ `app_id` + `secret_key` จาก BMS และ **ลงทะเบียน `redirect_uri`** (เช่น `https://<app>.onrender.com/login.html`) ก่อน ถึงจะใช้งานได้ — ถ้ายังไม่ตั้ง ปุ่มจะขึ้น error บอกให้ตั้งค่า
+> รายละเอียด flow/ข้อควรระวังดูใน `example_provider.md`
+
+---
+
 ## 4. การเชื่อมต่อ BMS-Session (แหล่งข้อมูลหลัก)
 
 ลำดับการเชื่อมต่อ: **URL param → cookie (7 วัน) → กรอกเอง**

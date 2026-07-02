@@ -11,6 +11,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const ENV_PATH = path.join(__dirname, '.env');
 
@@ -32,6 +33,18 @@ function loadEnvFile() {
 }
 
 function writeEnvFile(cfg) {
+  // Preserve any keys we don't manage here (e.g. PROVIDER_ID_*) so a settings-page
+  // save doesn't wipe them.
+  const managed = new Set(['PORT', 'ONLINE_DB_URL', 'ONLINE_ALLOW_WRITE']);
+  let preserved = '';
+  try {
+    if (fs.existsSync(ENV_PATH)) {
+      for (const line of fs.readFileSync(ENV_PATH, 'utf8').split(/\r?\n/)) {
+        const m = line.match(/^\s*([\w.]+)\s*=/);
+        if (m && !managed.has(m[1])) preserved += line + '\n';
+      }
+    }
+  } catch {}
   const content =
 `# Central online PostgreSQL (lab_app_online) - DO NOT COMMIT THIS FILE (.gitignore'd)
 PORT=${cfg.PORT || 8780}
@@ -40,7 +53,7 @@ ONLINE_DB_URL=${cfg.ONLINE_DB_URL || ''}
 # Set to true ONLY if you intentionally allow INSERT/UPDATE/DELETE via /api/online/sql.
 # Default is read-only (SELECT/WITH only) for safety.
 ONLINE_ALLOW_WRITE=${cfg.ONLINE_ALLOW_WRITE || 'false'}
-`;
+${preserved ? '\n' + preserved : ''}`;
   fs.writeFileSync(ENV_PATH, content, 'utf8');
 }
 
@@ -528,6 +541,98 @@ async function handleInitHospitals(res) {
   } catch (e) { sendJson(res, 400, { MessageCode: 400, Message: e.message }); }
 }
 
+// ---- MOPH Provider ID login (OAuth via BMS Authen Proxy) ----
+// Flow: browser -> MOPH -> back with ?code -> exchange (encrypt app_id + Bearer code)
+//       -> BMS proxy returns provider staff + organizations[].hcode -> route by registry.
+// Secrets (app_id, secret_key) come from env; defaults below are the public values
+// from the Postman collection.
+const PID = {
+  clientId:    process.env.PROVIDER_ID_CLIENT_ID    || env.PROVIDER_ID_CLIENT_ID    || '9c42a882-3f47-4609-92c5-e4e00a8ea676',
+  appId:       process.env.PROVIDER_ID_APP_ID       || env.PROVIDER_ID_APP_ID       || '',
+  secretKey:   process.env.PROVIDER_ID_SECRET_KEY   || env.PROVIDER_ID_SECRET_KEY   || '',
+  redirectUri: process.env.PROVIDER_ID_REDIRECT_URI || env.PROVIDER_ID_REDIRECT_URI || '',
+  authUrl:     process.env.PROVIDER_ID_AUTH_URL     || env.PROVIDER_ID_AUTH_URL     || 'https://moph.id.th/oauth/redirect',
+  tokenUrl:    process.env.PROVIDER_ID_TOKEN_URL    || env.PROVIDER_ID_TOKEN_URL    || 'https://bms-authen-provider.bmscloud.in.th/api/v1/auth/provider-id',
+};
+
+// AES-256-CBC + random IV, base64(IV ‖ ciphertext) — must match BMS proxy's Dart encryptAESWithIV.
+function encryptAESWithIV(plaintext, key) {
+  const keyBytes = Buffer.from(String(key).padEnd(32, '0'), 'utf8').slice(0, 32);
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv('aes-256-cbc', keyBytes, iv);
+  const enc = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+  return Buffer.concat([iv, enc]).toString('base64');
+}
+
+// redirect_uri MUST be identical on the MOPH redirect and the BMS exchange, and must
+// be pre-registered with BMS. Use the configured value, else derive from the request.
+function providerRedirectUri(req) {
+  if (PID.redirectUri) return PID.redirectUri;
+  const proto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() || 'http';
+  const host = req.headers['x-forwarded-host'] || req.headers.host || ('localhost:' + state.PORT);
+  return `${proto}://${host}/login.html`;
+}
+
+// GET /api/auth/provider-id -> 302 redirect to MOPH login
+function handleProviderRedirect(req, res) {
+  if (!PID.clientId) return sendJson(res, 500, { MessageCode: 500, Message: 'Provider ID ยังไม่ตั้งค่า (PROVIDER_ID_CLIENT_ID)' });
+  const redirectUri = providerRedirectUri(req);
+  const state16 = crypto.randomBytes(16).toString('hex');
+  const url = PID.authUrl + '?response_type=code'
+    + '&client_id=' + encodeURIComponent(PID.clientId)
+    + '&redirect_uri=' + encodeURIComponent(redirectUri)
+    + '&scope=ProviderID'
+    + '&state=' + state16;
+  res.writeHead(302, { Location: url });
+  res.end();
+}
+
+// POST /api/auth/provider-id/exchange { code } -> { provider, organizations[] }
+const usedProviderCodes = new Set();
+async function handleProviderExchange(req, res) {
+  const body = await readBody(req);
+  if (!body) return sendJson(res, 400, { MessageCode: 400, Message: 'Bad JSON body' });
+  const code = String(body.code || '').trim();
+  if (!code || code.length < 100) return sendJson(res, 400, { MessageCode: 400, Message: 'code ไม่ถูกต้อง (สั้นเกินไป)' });
+  if (!PID.appId || !PID.secretKey) {
+    return sendJson(res, 500, { MessageCode: 500, Message: 'Provider ID ยังไม่ตั้งค่า app_id/secret_key (.env: PROVIDER_ID_APP_ID, PROVIDER_ID_SECRET_KEY)' });
+  }
+  const codeKey = code.slice(0, 50);
+  if (usedProviderCodes.has(codeKey)) return sendJson(res, 409, { MessageCode: 409, Message: 'code ถูกใช้ไปแล้ว — กด "เข้าสู่ระบบด้วย Provider ID" อีกครั้ง' });
+  usedProviderCodes.add(codeKey);
+  setTimeout(() => usedProviderCodes.delete(codeKey), 5 * 60 * 1000);
+
+  const redirectUri = String(body.redirect_uri || '').trim() || providerRedirectUri(req);
+  try {
+    const encAppId = encryptAESWithIV(PID.appId, PID.secretKey);
+    const controller = new AbortController();
+    const to = setTimeout(() => controller.abort(), 20000);
+    const r = await fetch(PID.tokenUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', Authorization: 'Bearer ' + code },
+      body: JSON.stringify({ app_id: encAppId, redirect_uri: redirectUri }),
+      signal: controller.signal,
+    });
+    clearTimeout(to);
+    let data = null; try { data = await r.json(); } catch {}
+    if (!r.ok || !data) {
+      return sendJson(res, 502, { MessageCode: 502, Message: (data && (data.message || data.Message)) || ('BMS proxy HTTP ' + r.status) });
+    }
+    const account = (data.moph_account && data.moph_account.data) || {};
+    const staff = (data.provider_staff && data.provider_staff.data) || {};
+    const orgs = Array.isArray(staff.organization) ? staff.organization : [];
+    const providerId = staff.provider_id || '';
+    const name = `${account.account_title_th || ''} ${account.first_name_th || staff.firstname_th || ''} ${account.last_name_th || staff.lastname_th || ''}`.replace(/\s+/g, ' ').trim();
+    const organizations = orgs
+      .map((o) => ({ hcode: String(o.hcode || '').trim(), hname: o.hname_th || o.hname_eng || '', position: o.position || '' }))
+      .filter((o) => o.hcode);
+    if (!organizations.length) return sendJson(res, 403, { MessageCode: 403, Message: 'ไม่พบสถานพยาบาลที่สังกัดในข้อมูล Provider ID' });
+    sendJson(res, 200, { MessageCode: 200, provider: { provider_id: providerId, name }, organizations });
+  } catch (e) {
+    sendJson(res, 502, { MessageCode: 502, Message: e.name === 'AbortError' ? 'หมดเวลาเชื่อมต่อ BMS proxy' : ('เชื่อมต่อ BMS proxy ไม่ได้: ' + e.message) });
+  }
+}
+
 // ---- HOSxP proxy: browser -> server.js -> tunnel (avoids CORS + clearer errors) ----
 async function handleHosxpSql(req, res) {
   const body = await readBody(req);
@@ -588,6 +693,8 @@ http.createServer((req, res) => {
   if (url === '/api/online/hospitals' && req.method === 'POST') return handleUpsertHospital(req, res);
   if (url === '/api/online/hospitals/delete' && req.method === 'POST') return handleDeleteHospital(req, res);
   if (url === '/api/online/hospitals/init' && req.method === 'POST') return handleInitHospitals(res);
+  if (url === '/api/auth/provider-id' && req.method === 'GET') return handleProviderRedirect(req, res);
+  if (url === '/api/auth/provider-id/exchange' && req.method === 'POST') return handleProviderExchange(req, res);
   if (url === '/api/hosxp/sql' && req.method === 'POST') return handleHosxpSql(req, res);
   if (req.method === 'GET') return serveStatic(req, res);
   res.writeHead(405); res.end('method not allowed');

@@ -74,6 +74,22 @@
   .row-act:hover { color: var(--primary); }
   .row-act.del:hover { color: var(--error); }
   .mono { font-family: 'JetBrains Mono', monospace; }
+
+  /* Provider ID */
+  .or-sep { text-align: center; color: var(--text-muted); font-size: 12px; margin: 14px 0 10px; position: relative; }
+  .or-sep::before, .or-sep::after { content: ''; position: absolute; top: 50%; width: 38%; height: 1px; background: var(--border); }
+  .or-sep::before { left: 0; } .or-sep::after { right: 0; }
+  .btn-provider { background: linear-gradient(135deg, #7c3aed, #22d3ee); }
+  .pick-overlay { position: fixed; inset: 0; background: rgba(15,32,68,0.6); z-index: 300; display: none; align-items: center; justify-content: center; padding: 20px; }
+  .pick-overlay.show { display: flex; }
+  .pick-box { background: var(--surface); border-radius: 14px; width: 100%; max-width: 420px; padding: 22px; box-shadow: 0 20px 60px rgba(0,0,0,0.35); }
+  .pick-box h3 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+  .pick-box > p { font-size: 12px; color: var(--text-muted); margin-bottom: 14px; }
+  .pick-item { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; text-align: left; padding: 11px 13px; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); cursor: pointer; font-family: inherit; transition: all 0.15s; }
+  .pick-item:hover { border-color: var(--primary); background: var(--surface2); }
+  .pick-item:disabled { opacity: 0.5; cursor: wait; }
+  .pick-item b { font-size: 14px; color: var(--text); }
+  .pick-item span { font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
 </style>
 </head>
 <body>
@@ -91,6 +107,8 @@
         <input type="text" id="hcode" placeholder="เช่น 10670" maxlength="15" autocomplete="off" autofocus>
       </div>
       <button class="btn" id="loginBtn">&#128273; เข้าสู่ระบบ</button>
+      <div class="or-sep">หรือ</div>
+      <button class="btn btn-provider" id="providerBtn"><span>&#129658;</span> เข้าสู่ระบบด้วย Provider ID (MOPH)</button>
       <div class="result" id="result"></div>
     </div>
     <div class="login-foot">
@@ -138,6 +156,16 @@
       </table>
     </div>
   </div>
+
+  <!-- Provider ID: pick hospital when the provider belongs to more than one -->
+  <div class="pick-overlay" id="orgPicker">
+    <div class="pick-box">
+      <h3>เลือกสถานพยาบาล</h3>
+      <p id="pickWho"></p>
+      <div id="pickList"></div>
+      <button class="link-btn" id="pickCancel">ยกเลิก</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -159,30 +187,74 @@ async function pingDb(){
   }catch(e){ $('dbDot').className='conn-dot fail'; $('dbText').textContent='ฐานกลาง: offline (เปิดผ่าน start.bat)'; return false; }
 }
 
-// ---- Login ----
+// ---- Shared: look a hcode up in the registry and route to index/client ----
+async function resolveAndRoute(hcode){
+  try{
+    const r = await fetch('/api/online/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ hcode }) });
+    const j = await r.json();
+    if(!r.ok) return { ok:false, msg: j.Message || `HTTP ${r.status}` };
+    if(j.notInitialized) return { ok:false, notInitialized:true, msg:'ยังไม่มีตารางทะเบียน รพ. — เปิด "จัดการทะเบียน รพ." เพื่อสร้างและเพิ่มรหัสก่อน' };
+    if(!j.found) return { ok:false, msg:`รหัส "${hcode}" ยังไม่ลงทะเบียนในระบบ — ติดต่อผู้ดูแลเพื่อเพิ่มรหัส` };
+    const d = j.data;
+    try{ sessionStorage.setItem('bms_login', JSON.stringify(d)); }catch(e){}
+    const target = d.hos_type === 'main' ? 'index.html' : 'client.html';
+    location.href = `${target}?hcode=${encodeURIComponent(d.hcode)}`;
+    return { ok:true, data:d };
+  }catch(e){ return { ok:false, msg:'เรียก backend ไม่ได้ — เปิดผ่าน start.bat (server.js)' }; }
+}
+
+// ---- Login by hospital code ----
 async function doLogin(){
   const hcode = $('hcode').value.trim();
   const btn = $('loginBtn'), res = $('result');
   hideResult(res);
   if(!hcode){ showResult(res,'err','กรุณากรอกรหัสสถานพยาบาล'); return; }
   btn.disabled = true; btn.textContent = 'กำลังตรวจสอบ...';
+  const out = await resolveAndRoute(hcode);
+  if(!out.ok){ showResult(res,'err', out.msg); if(out.notInitialized) $('adminCard').classList.add('show'); }
+  else showResult(res,'ok', `เข้าสู่ระบบเป็น ${out.data.hos_type==='main'?'แม่ข่าย':'ลูกข่าย'} · ${out.data.hname||hcode} — กำลังเปิดหน้าจอ...`);
+  btn.disabled = false; btn.innerHTML = '&#128273; เข้าสู่ระบบ';
+}
+
+// ---- Login with MOPH Provider ID ----
+function startProviderLogin(){ location.href = '/api/auth/provider-id'; }
+
+// After MOPH redirects back to this page with ?code=..., exchange it for the
+// provider's organizations, then route by the registry (pick one if several).
+async function handleProviderCallback(){
+  const params = new URLSearchParams(location.search);
+  const code = params.get('code');
+  if(!code || code.length < 100) return;
+  // strip code/state from the URL so a refresh doesn't reuse a spent code
+  const clean = new URL(location.href); clean.searchParams.delete('code'); clean.searchParams.delete('state');
+  history.replaceState({}, '', clean.toString());
+  const res = $('result');
+  showResult(res,'info','กำลังยืนยันตัวตน Provider ID...');
   try{
-    const r = await fetch('/api/online/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ hcode }) });
+    const r = await fetch('/api/auth/provider-id/exchange', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ code }) });
     const j = await r.json();
     if(!r.ok){ showResult(res,'err', j.Message || `HTTP ${r.status}`); return; }
-    if(j.notInitialized){ showResult(res,'err','ยังไม่มีตารางทะเบียน รพ. — เปิด "จัดการทะเบียน รพ." เพื่อสร้างและเพิ่มรหัสก่อน'); $('adminCard').classList.add('show'); return; }
-    if(!j.found){ showResult(res,'err', `ไม่พบรหัส "${hcode}" ในทะเบียน — ติดต่อผู้ดูแลเพื่อเพิ่มรหัส`); return; }
-    const d = j.data;
-    // remember identity for the target page
-    try{ sessionStorage.setItem('bms_login', JSON.stringify(d)); }catch(e){}
-    const target = d.hos_type === 'main' ? 'index.html' : 'client.html';
-    showResult(res,'ok', `เข้าสู่ระบบเป็น ${d.hos_type==='main'?'แม่ข่าย':'ลูกข่าย'} · ${d.hname||hcode} — กำลังเปิดหน้าจอ...`);
-    setTimeout(()=>{ location.href = `${target}?hcode=${encodeURIComponent(d.hcode)}`; }, 600);
-  }catch(e){
-    showResult(res,'err','เรียก backend ไม่ได้ — เปิดผ่าน start.bat (server.js)');
-  }finally{
-    btn.disabled = false; btn.innerHTML = '&#128273; เข้าสู่ระบบ';
-  }
+    const orgs = j.organizations || [];
+    if(orgs.length === 1){
+      showResult(res,'info', `ยืนยันตัวตนสำเร็จ · ${j.provider?.name||''} — กำลังเข้าสู่ระบบ...`);
+      const out = await resolveAndRoute(orgs[0].hcode);
+      if(!out.ok) showResult(res,'err', out.msg);
+    } else {
+      showOrgPicker(j.provider, orgs);
+    }
+  }catch(e){ showResult(res,'err','เรียก backend ไม่ได้'); }
+}
+
+function showOrgPicker(provider, orgs){
+  $('pickWho').textContent = provider && provider.name ? `${provider.name}${provider.provider_id?' ('+provider.provider_id+')':''}` : '';
+  $('pickList').innerHTML = orgs.map((o,i)=>`<button class="pick-item" data-i="${i}"><b>${escHtml(o.hname||o.hcode)}</b><span>${escHtml(o.hcode)}${o.position?' · '+escHtml(o.position):''}</span></button>`).join('');
+  $('pickList').querySelectorAll('button[data-i]').forEach(b=>b.addEventListener('click', async ()=>{
+    const o = orgs[parseInt(b.dataset.i,10)];
+    b.disabled = true;
+    const out = await resolveAndRoute(o.hcode);
+    if(!out.ok){ $('orgPicker').classList.remove('show'); showResult($('result'),'err', out.msg); }
+  }));
+  $('orgPicker').classList.add('show');
 }
 
 // ================= Admin: registry management =================
@@ -260,6 +332,8 @@ async function checkWritable(){
 function init(){
   $('loginBtn').addEventListener('click', doLogin);
   $('hcode').addEventListener('keydown', e => { if(e.key === 'Enter') doLogin(); });
+  $('providerBtn').addEventListener('click', startProviderLogin);
+  $('pickCancel').addEventListener('click', () => $('orgPicker').classList.remove('show'));
   $('adminToggle').addEventListener('click', () => { const c = $('adminCard'); c.classList.toggle('show'); if(c.classList.contains('show')){ checkWritable(); loadRegistry(); } });
   $('adminClose').addEventListener('click', () => $('adminCard').classList.remove('show'));
   $('fType').addEventListener('change', syncMainCodeVisibility);
@@ -268,6 +342,7 @@ function init(){
   $('reloadListBtn').addEventListener('click', loadRegistry);
   syncMainCodeVisibility();
   pingDb();
+  handleProviderCallback();   // if MOPH redirected back with ?code=
 }
 init();
 </script>
